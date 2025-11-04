@@ -1,0 +1,4 @@
+# 1. 模型超参数
+config:
+  hidden_size: 128
+  num_layers: 2

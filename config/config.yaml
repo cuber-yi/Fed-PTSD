@@ -1,0 +1,45 @@
+# 1. 联邦学习与训练设置
+federation:
+  num_rounds: 50
+  local_epochs: 5
+  batch_size: 32
+
+training:
+  lr: 0.001
+  optimizer: 'adam'
+
+
+# 数据与设备设置
+#data:
+#  mode: 'multi_file'  # 使用多文件模式
+#  files:
+##    - 'data/batch-1.xlsx'
+##    - 'data/batch-2.xlsx'
+##    - 'data/batch-3.xlsx'
+#    - 'data/batch-4.xlsx'
+#    - 'data/batch-5.xlsx'
+#  window_size: 250
+#  pre_len: 250
+#  max_capacity: 1.1
+#  enc_in: 6
+#  device: 'cuda'
+
+# ==========================================
+# 模式2: 单文件多客户端模式 (每个Sheet一个客户端)
+# ==========================================
+data:
+ mode: 'single_file_multi_client'  # 使用单文件多客户端模式
+ single_file: 'data/batch-1.xlsx'  # 指定单个数据文件
+ window_size: 100
+ pre_len: 100
+ max_capacity: 2.0
+ enc_in: 6
+ device: 'cuda'
+
+# 模型选择
+model:
+  name: 'xpatch'    #'xpatch'、'rnn'
+
+# 结果保存路径
+results:
+  save_dir_prefix: 'result/'

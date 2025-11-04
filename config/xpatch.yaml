@@ -1,0 +1,12 @@
+# 1. 模型超参数
+config:
+  seq_len: 100
+  pred_len: 100
+  patch_len: 10
+  stride: 5
+  padding_patch: 'end'
+  revin: 1
+  ma_type: 'ema'
+  alpha: 0.3
+  beta: 0.3
+
