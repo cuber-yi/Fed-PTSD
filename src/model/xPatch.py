@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-from src.layers.decomp import DECOMP
-from src.layers.network import Network
-from src.layers.revin import RevIN
+from src.model.layers.decomp import DECOMP
+from src.model.layers.network import Network
+from src.model.layers.revin import RevIN
 
 class xPatch(nn.Module):
     def __init__(self, seq_len, pred_len, enc_in, patch_len, stride, padding_patch, revin, ma_type, alpha, beta):

@@ -3,7 +3,12 @@ import numpy as np
 import torch
 from torch.utils.data import TensorDataset, DataLoader, ConcatDataset
 from sklearn.preprocessing import MinMaxScaler
+import random
 
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
 
 def load_battery_data(file_path):
     """
@@ -70,18 +75,6 @@ def create_windowed_dataset(X, y, window_size, pre_len):
 
 
 def generate_datasets(file_sheet_map, window_size=50, pre_len=5, batch_size=32, max_capacity=2.0):
-    """
-    为训练集、验证集和测试集生成DataLoader。
-    参数：
-        file_sheet_map: 字典，键为数据集类型（'pretrain', 'finetune', 'test'），值为列表[(file_path, sheet_name), ...]
-        window_size: 窗口大小
-        pre_len: 预测步数
-        batch_size: 批次大小
-        max_capacity: 最大容量
-    返回：
-        dataloaders: 字典，键为'pretrain', 'finetune', 'test'，值为对应的DataLoader
-        scalers: 字典，键为(file_path, sheet_name)，值为对应的MinMaxScaler
-    """
     dataloaders = {'pretrain': [], 'finetune': [], 'test': []}
     scalers = {}
 
@@ -121,7 +114,7 @@ def generate_datasets(file_sheet_map, window_size=50, pre_len=5, batch_size=32, 
     return dataloaders, scalers
 
 
-def setup_clients_by_file(file_paths, window_size, pre_len, batch_size, max_capacity):
+def setup_clients_by_file(file_paths, window_size, pre_len, batch_size, max_capacity, generator):
     client_dataloaders = []
     client_id_counter = 0
     for file_path in file_paths:
@@ -145,7 +138,8 @@ def setup_clients_by_file(file_paths, window_size, pre_len, batch_size, max_capa
                 print(f"  - Loaded {len(dataset)} samples from sheet: {sheet_name}.")
             if all_datasets_for_client:
                 combined_client_dataset = ConcatDataset(all_datasets_for_client)
-                dataloader = DataLoader(combined_client_dataset, batch_size=batch_size, shuffle=True)
+                dataloader = DataLoader(combined_client_dataset, batch_size=batch_size, shuffle=True,
+                                        worker_init_fn=seed_worker, generator=generator)
                 client_dataloaders.append(dataloader)
                 print(
                     f"--> Created DataLoader for Client {client_id_counter} with a total of {len(combined_client_dataset)} samples.")
@@ -157,7 +151,7 @@ def setup_clients_by_file(file_paths, window_size, pre_len, batch_size, max_capa
     return client_dataloaders
 
 
-def setup_clients_by_sheet(file_path, window_size, pre_len, batch_size, max_capacity):
+def setup_clients_by_sheet(file_path, window_size, pre_len, batch_size, max_capacity, generator):
     client_dataloaders = []
     try:
         xls = pd.ExcelFile(file_path)
@@ -177,7 +171,8 @@ def setup_clients_by_sheet(file_path, window_size, pre_len, batch_size, max_capa
             X_tensor = torch.FloatTensor(X_windowed)
             y_tensor = torch.FloatTensor(y_windowed)
             dataset = TensorDataset(X_tensor, y_tensor)
-            dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+            dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True,
+                                    worker_init_fn=seed_worker, generator=generator)
             client_dataloaders.append(dataloader)
 
             print(f"--> 创建客户端 {client_id} from sheet '{sheet_name}' with {len(dataset)} samples.")

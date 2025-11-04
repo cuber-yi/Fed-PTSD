@@ -13,7 +13,6 @@ class Server:
 
         ModelClass = get_model_class(model_name)
         self.global_model = ModelClass(**model_params).to(self.device)
-        print(f"服务端部署模型: {model_name}")
 
     def aggregate_parameters(self, client_parameters_list: list):
         """
@@ -36,12 +35,6 @@ class Server:
 
     def update_global_model(self, new_params: OrderedDict):
         """用聚合后的新参数直接更新全局模型"""
-        if not new_params:
-            return
-
-        # 获取当前全局模型的完整状态字典
         current_state_dict = self.global_model.state_dict()
-        # 将聚合后的可训练参数加载进去
         current_state_dict.update(new_params)
-        # 加载更新后的状态字典
         self.global_model.load_state_dict(current_state_dict)

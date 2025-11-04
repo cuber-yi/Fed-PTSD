@@ -3,6 +3,7 @@ import torch
 import copy
 import os
 import datetime
+import random
 from utils.config_utils import load_config
 from utils.data_loader import setup_clients_by_sheet, setup_clients_by_file
 from utils.reporting_utils import save_summary_report
@@ -10,10 +11,26 @@ from client import Client
 from server import Server
 
 
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
 
 def main():
     # --- 加载配置 ---
     config = load_config('config/config.yaml')
+    seed = config.get('seed', 42)
+    set_seed(seed)
+    g = torch.Generator()
+    g.manual_seed(seed)
     device = torch.device(config['data']['device'])
     print(f"加载模型: '{config['model']['name']}'. 运行设备: {device}")
 
@@ -36,7 +53,8 @@ def main():
             window_size=config['data']['window_size'],
             pre_len=config['data']['pre_len'],
             batch_size=config['federation']['batch_size'],
-            max_capacity=config['data']['max_capacity']
+            max_capacity=config['data']['max_capacity'],
+            generator=g
         )
     else:
         print("从多文件配置客户端")
@@ -45,12 +63,12 @@ def main():
             window_size=config['data']['window_size'],
             pre_len=config['data']['pre_len'],
             batch_size=config['federation']['batch_size'],
-            max_capacity=config['data']['max_capacity']
+            max_capacity=config['data']['max_capacity'],
+            generator=g
         )
 
 
     num_total_clients = len(client_dataloaders)
-    print(f"\n客户端总数: {num_total_clients}")
 
     # 初始化Client和Server实例
     clients = [Client(client_id=i, dataloader=dl, config=config, device=device) for

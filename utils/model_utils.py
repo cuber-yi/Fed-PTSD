@@ -1,10 +1,16 @@
-from src.xPatch import xPatch
-from src.RNN import RNN
+from src.model.xPatch import xPatch
+from src.model.RNN import RNN
+from src.model.LSTM import LSTM
+from src.model.GRU import GRU
+from src.model.MLP import MLP
 
 
 MODEL_REGISTRY = {
     'xpatch': xPatch,
     'rnn': RNN,
+    'lstm': LSTM,
+    'gru': GRU,
+    'mlp': MLP,
 }
 
 
