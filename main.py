@@ -23,7 +23,6 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
 
 
-
 def main():
     # --- 加载配置 ---
     config = load_config('config/config.yaml')

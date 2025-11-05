@@ -1,4 +1,4 @@
-seed: 925
+seed: 9
 
 # 联邦学习与训练设置
 federation:
@@ -15,20 +15,20 @@ training:
 #data:
 #  mode: 'multi_file'  # 使用多文件模式
 #  files:
-##    - 'data/batch-1.xlsx'
-##    - 'data/batch-2.xlsx'
-##    - 'data/batch-3.xlsx'
-#    - 'data/batch-4.xlsx'
-#    - 'data/batch-5.xlsx'
-#  window_size: 250
-#  pre_len: 250
-#  max_capacity: 1.1
+#    - 'data/batch-1.xlsx'
+#    - 'data/batch-2.xlsx'
+#    - 'data/batch-3.xlsx'
+##    - 'data/batch-4.xlsx'
+##    - 'data/batch-5.xlsx'
+#  window_size: 50
+#  pre_len: 200
+#  max_capacity: 2.0
 #  enc_in: 6
 #  device: 'cuda'
 
 data:
  mode: 'single_file_multi_client'  # 使用单文件多客户端模式
- single_file: 'data/batch-2.xlsx'  # 指定单个数据文件
+ single_file: 'data/batch-1.xlsx'  # 指定单个数据文件
  window_size: 50
  pre_len: 200
  max_capacity: 2.0
@@ -41,4 +41,4 @@ model:
 
 # 结果保存路径
 results:
-  save_dir_prefix: 'result/模型对比基准实验/XJTU-batch2/'
+  save_dir_prefix: 'result/模型对比基准实验/XJTU-batch123/'
