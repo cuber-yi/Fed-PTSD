@@ -41,4 +41,4 @@ model:
 
 # 结果保存路径
 results:
-  save_dir_prefix: 'result/模型对比基准实验/XJTU-batch123/'
+  save_dir_prefix: 'result/'

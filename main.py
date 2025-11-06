@@ -78,30 +78,30 @@ def main():
     num_rounds = config['federation']['num_rounds']
     for comm_round in range(num_rounds):
         print(f"\n{'=' * 20} 通信轮次： {comm_round + 1}/{num_rounds} {'=' * 20}")
-
         # --- 模型分发 ---
-        global_model_state = server.global_model.state_dict()
-        client_parameters_list = []
-
+        global_model_parts = server.get_global_model_parts()
+        # 存储所有客户端上传的、拆分后的参数
+        client_parts_list = []
         # --- 客户端本地训练 ---
         for client in clients:
-            client.set_global_model(copy.deepcopy(global_model_state))
+            # 客户端加载拆分后的模型
+            client.set_global_model(copy.deepcopy(global_model_parts))
             client.local_train()
-            # 客户端返回本地训练后的完整参数
-            local_params = client.get_local_parameters()
-            client_parameters_list.append(local_params)
+            # 客户端返回拆分后的本地参数
+            local_parts = client.get_local_parameters()
+            client_parts_list.append(local_parts)
 
-        # --- 服务器端聚合 ---
-        aggregated_params = server.aggregate_parameters(client_parameters_list)
+        # 服务器分别聚合所有部分
+        aggregated_parts = server.aggregate_parameters(client_parts_list)
         # 更新全局模型
-        server.update_global_model(aggregated_params)
+        server.update_global_model(aggregated_parts)
 
     # --- 最终评估 ---
     print(f"\n{'=' * 20} 开始最终评估 {'=' * 20}")
     # 获取最终的全局模型并分发给客户端进行评估
-    final_global_model_state = server.global_model.state_dict()
+    final_global_model_parts = server.get_global_model_parts()
     for client in clients:
-        client.set_global_model(copy.deepcopy(final_global_model_state))
+        client.set_global_model(copy.deepcopy(final_global_model_parts))
 
     all_metrics = []
     for client in clients:

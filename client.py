@@ -9,6 +9,48 @@ from utils.model_utils import get_model_class
 from utils.reporting_utils import save_client_results
 
 
+def _classify_xpatch_param(key: str) -> str:
+    """
+    根据xPatch模型结构，将参数键分为四类：
+    1. 'common': RevIN 和 Decomp 模块
+    2. 'seasonal': 季节性流 (Network.py中的非线性流)
+    3. 'trend': 趋势流 (Network.py中的线性流)
+    4. 'personal': 个性化头 (Network.py中的fc8)
+    """
+    # 4. 个性化头
+    if key.startswith('net.fc8'):
+        return 'personal'
+
+    # 2. 季节性流 (Non-linear Stream in network.py)
+    if key.startswith('net.fc1') or \
+            key.startswith('net.bn1') or \
+            key.startswith('net.conv1') or \
+            key.startswith('net.bn2') or \
+            key.startswith('net.fc2') or \
+            key.startswith('net.conv2') or \
+            key.startswith('net.bn3') or \
+            key.startswith('net.fc3') or \
+            key.startswith('net.fc4'):
+        return 'seasonal'
+
+    # 3. 趋势流 (Linear Stream in network.py)
+    if key.startswith('net.fc5') or \
+            key.startswith('net.ln1') or \
+            key.startswith('net.fc6') or \
+            key.startswith('net.ln2') or \
+            key.startswith('net.fc7'):
+        return 'trend'
+
+    # 1. 公共基础 (ReVIN 和 Decomp)
+    if key.startswith('revin_layer') or \
+            key.startswith('decomp'):
+        return 'common'
+
+    # 理论上不应到达这里
+    print(f"警告: 未分类的参数 - {key}")
+    return 'common'
+
+
 class Client:
     def __init__(self, client_id: int, dataloader: DataLoader, config: dict, device: torch.device):
         self.client_id = client_id
@@ -17,24 +59,39 @@ class Client:
         self.device = device
 
         # --- 使用模型工厂动态创建本地模型 ---
-        model_name = self.config['model']['name']
+        self.model_name = self.config['model']['name']
         model_params = self.config['model']['config']
 
-        ModelClass = get_model_class(model_name)
+        ModelClass = get_model_class(self.model_name)
         self.model = ModelClass(**model_params).to(self.device)
 
-    def set_global_model(self, global_state_dict: OrderedDict):
-        """从服务器接收并加载完整的全局模型权重"""
-        self.model.load_state_dict(global_state_dict)
+    def set_global_model(self, global_parts: dict):
+        """
+        从服务器接收拆分后的全局模型。
+        """
+        is_xpatch_pFL = self.model_name.lower() == 'xpatch'
+
+        if is_xpatch_pFL:
+            # --- 新增逻辑：个性化加载 ---
+            local_state_dict = self.model.state_dict()
+
+            # 加载所有共享部分
+            local_state_dict.update(global_parts['common'])
+            local_state_dict.update(global_parts['seasonal'])
+            local_state_dict.update(global_parts['trend'])
+
+            # 加载合并后的状态 (共享层来自全局，个性化层'net.fc8'保留本地)
+            self.model.load_state_dict(local_state_dict)
+
+        else:
+            # --- 加载完整模型 ---
+            self.model.load_state_dict(global_parts['full_model'])
 
     def local_train(self):
-        """执行本地训练"""
+        """执行本地训练 (同时训练共享层和个性化层)"""
         self.model.train()
-
-        # 从config中获取超参数
         local_epochs = self.config['federation']['local_epochs']
         lr = self.config['training']['lr']
-
         optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
         criterion = nn.MSELoss()
 
@@ -42,21 +99,45 @@ class Client:
             for x_batch, y_batch in self.dataloader:
                 x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
                 optimizer.zero_grad()
-
                 outputs = self.model(x_batch)
                 loss = criterion(outputs, y_batch.squeeze(-1))
                 loss.backward()
                 optimizer.step()
 
-    def get_local_parameters(self):
+    def get_local_parameters(self) -> dict:
         """
-        返回本地训练后模型的、可训练的参数。
+        返回本地训练后的模型参数，拆分为多个部分。
         """
-        local_params = OrderedDict()
-        for name, param in self.model.named_parameters():
-            if param.requires_grad:
-                local_params[name] = param.data.clone() # 返回参数的副本
-        return local_params
+        is_xpatch_pFL = self.model_name.lower() == 'xpatch'
+
+        if is_xpatch_pFL:
+            # --- 新增逻辑：拆分参数 ---
+            parts = {
+                'common': OrderedDict(),
+                'seasonal': OrderedDict(),
+                'trend': OrderedDict(),
+                'personal': OrderedDict()  # 本地保留
+            }
+
+            for name, param in self.model.named_parameters():
+                if param.requires_grad:
+                    part_name = _classify_xpatch_param(name)
+                    parts[part_name][name] = param.data.clone()
+
+            # 只返回共享部分
+            return {
+                'common': parts['common'],
+                'seasonal': parts['seasonal'],
+                'trend': parts['trend']
+            }
+
+        else:
+            # --- 返回完整模型 ---
+            full_params = OrderedDict()
+            for name, param in self.model.named_parameters():
+                if param.requires_grad:
+                    full_params[name] = param.data.clone()
+            return {'full_model': full_params}
 
     def evaluate(self, save_dir: str):
         # --- 1. 保存最终模型 ---
