@@ -46,8 +46,6 @@ def _classify_xpatch_param(key: str) -> str:
             key.startswith('decomp'):
         return 'common'
 
-    # 理论上不应到达这里
-    print(f"警告: 未分类的参数 - {key}")
     return 'common'
 
 
@@ -64,6 +62,12 @@ class Client:
 
         ModelClass = get_model_class(self.model_name)
         self.model = ModelClass(**model_params).to(self.device)
+
+        self.dp_enabled = self.config.get('privacy', {}).get('enabled', False)
+        if self.dp_enabled:
+            self.dp_clipping_norm = self.config['privacy']['clipping_norm']
+            self.dp_noise_sigma = self.config['privacy']['noise_sigma']
+            print(f"[Client {client_id}] 差分隐私已启用. Clip={self.dp_clipping_norm}, Sigma={self.dp_noise_sigma}")
 
     def set_global_model(self, global_parts: dict):
         """
@@ -102,7 +106,20 @@ class Client:
                 outputs = self.model(x_batch)
                 loss = criterion(outputs, y_batch.squeeze(-1))
                 loss.backward()
+                if self.dp_enabled:
+                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.dp_clipping_norm)
                 optimizer.step()
+
+    def _add_noise_to_part(self, part_dict: OrderedDict, sigma: float) -> OrderedDict:
+        """为参数字典中的每个张量添加高斯噪声"""
+        if sigma == 0:
+            return part_dict
+
+        noisy_part = OrderedDict()
+        for key, param in part_dict.items():
+            noise = torch.randn_like(param) * sigma
+            noisy_part[key] = param + noise
+        return noisy_part
 
     def get_local_parameters(self) -> dict:
         """
@@ -116,13 +133,25 @@ class Client:
                 'common': OrderedDict(),
                 'seasonal': OrderedDict(),
                 'trend': OrderedDict(),
-                'personal': OrderedDict()  # 本地保留
+                'personal': OrderedDict()
             }
 
             for name, param in self.model.named_parameters():
                 if param.requires_grad:
                     part_name = _classify_xpatch_param(name)
                     parts[part_name][name] = param.data.clone()
+
+            if self.dp_enabled:
+                noisy_common = self._add_noise_to_part(parts['common'], self.dp_noise_sigma['common'])
+                noisy_seasonal = self._add_noise_to_part(parts['seasonal'], self.dp_noise_sigma['seasonal'])
+                noisy_trend = self._add_noise_to_part(parts['trend'], self.dp_noise_sigma['trend'])
+
+                # 只返回添加噪声后的共享部分
+                return {
+                    'common': noisy_common,
+                    'seasonal': noisy_seasonal,
+                    'trend': noisy_trend
+                }
 
             # 只返回共享部分
             return {

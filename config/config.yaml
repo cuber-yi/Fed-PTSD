@@ -1,6 +1,5 @@
 seed: 9
 
-# 联邦学习与训练设置
 federation:
   num_rounds: 50
   local_epochs: 5
@@ -9,6 +8,21 @@ federation:
 training:
   lr: 0.001
   optimizer: 'adam'
+
+model:
+  name: 'xpatch'    #'xpatch', 'rnn', 'lstm', 'gru', 'mlp'
+
+results:
+  save_dir_prefix: 'result/'
+
+privacy:
+  enabled: true     # 是否启用差分隐私
+  clipping_norm: 1.5      # DP所必需的梯度裁剪 L2 范数
+
+  noise_sigma:
+    common: 0.0001
+    seasonal: 0.001
+    trend: 0.005
 
 
 # 数据与设备设置
@@ -35,10 +49,4 @@ data:
  enc_in: 6
  device: 'cuda'
 
-# 模型选择
-model:
-  name: 'xpatch'    #'xpatch', 'rnn', 'lstm', 'gru', 'mlp'
 
-# 结果保存路径
-results:
-  save_dir_prefix: 'result/'
