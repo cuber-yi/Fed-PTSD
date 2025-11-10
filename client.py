@@ -11,17 +11,18 @@ from utils.reporting_utils import save_client_results
 
 def _classify_xpatch_param(key: str) -> str:
     """
-    根据xPatch模型结构，将参数键分为四类：
-    1. 'common': RevIN 和 Decomp 模块
-    2. 'seasonal': 季节性流 (Network.py中的非线性流)
-    3. 'trend': 趋势流 (Network.py中的线性流)
-    4. 'personal': 个性化头 (Network.py中的fc8)
+    根据xPatch模型结构，将参数键分为三类：
+    1. 'seasonal': 季节性流 (Network.py中的非线性流)
+    2. 'trend': 趋势流 (Network.py中的线性流)
+    3. 'personal': 个性化头 (Network.py中的fc8，RevIN 和 Decomp 模块)
     """
-    # 4. 个性化头
-    if key.startswith('net.fc8'):
+    # 个性化头
+    if key.startswith('net.fc8') or \
+            key.startswith('revin_layer') or \
+            key.startswith('decomp'):
         return 'personal'
 
-    # 2. 季节性流 (Non-linear Stream in network.py)
+    # 季节性流 (Non-linear Stream in network.py)
     if key.startswith('net.fc1') or \
             key.startswith('net.bn1') or \
             key.startswith('net.conv1') or \
@@ -33,18 +34,13 @@ def _classify_xpatch_param(key: str) -> str:
             key.startswith('net.fc4'):
         return 'seasonal'
 
-    # 3. 趋势流 (Linear Stream in network.py)
+    # 趋势流 (Linear Stream in network.py)
     if key.startswith('net.fc5') or \
             key.startswith('net.ln1') or \
             key.startswith('net.fc6') or \
             key.startswith('net.ln2') or \
             key.startswith('net.fc7'):
         return 'trend'
-
-    # 1. 公共基础 (ReVIN 和 Decomp)
-    if key.startswith('revin_layer') or \
-            key.startswith('decomp'):
-        return 'common'
 
     return 'common'
 
@@ -76,15 +72,10 @@ class Client:
         is_xpatch_pFL = self.model_name.lower() == 'xpatch'
 
         if is_xpatch_pFL:
-            # --- 新增逻辑：个性化加载 ---
             local_state_dict = self.model.state_dict()
-
-            # 加载所有共享部分
-            local_state_dict.update(global_parts['common'])
             local_state_dict.update(global_parts['seasonal'])
             local_state_dict.update(global_parts['trend'])
-
-            # 加载合并后的状态 (共享层来自全局，个性化层'net.fc8'保留本地)
+            # 加载合并后的状态
             self.model.load_state_dict(local_state_dict)
 
         else:
@@ -128,7 +119,6 @@ class Client:
         is_xpatch_pFL = self.model_name.lower() == 'xpatch'
 
         if is_xpatch_pFL:
-            # --- 新增逻辑：拆分参数 ---
             parts = {
                 'common': OrderedDict(),
                 'seasonal': OrderedDict(),
@@ -142,23 +132,14 @@ class Client:
                     parts[part_name][name] = param.data.clone()
 
             if self.dp_enabled:
-                noisy_common = self._add_noise_to_part(parts['common'], self.dp_noise_sigma['common'])
                 noisy_seasonal = self._add_noise_to_part(parts['seasonal'], self.dp_noise_sigma['seasonal'])
                 noisy_trend = self._add_noise_to_part(parts['trend'], self.dp_noise_sigma['trend'])
 
                 # 只返回添加噪声后的共享部分
-                return {
-                    'common': noisy_common,
-                    'seasonal': noisy_seasonal,
-                    'trend': noisy_trend
-                }
+                return {'seasonal': noisy_seasonal, 'trend': noisy_trend}
 
             # 只返回共享部分
-            return {
-                'common': parts['common'],
-                'seasonal': parts['seasonal'],
-                'trend': parts['trend']
-            }
+            return {'seasonal': parts['seasonal'], 'trend': parts['trend']}
 
         else:
             # --- 返回完整模型 ---

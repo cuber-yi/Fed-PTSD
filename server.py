@@ -22,7 +22,7 @@ class Server:
         is_xpatch_pFL = self.model_name.lower() == 'xpatch'
 
         if is_xpatch_pFL:
-            parts = {'common': OrderedDict(), 'seasonal': OrderedDict(), 'trend': OrderedDict()}
+            parts = {'seasonal': OrderedDict(), 'trend': OrderedDict()}
 
             # 只遍历共享参数
             for name, param in self.global_model.named_parameters():

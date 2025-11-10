@@ -20,7 +20,6 @@ privacy:
   clipping_norm: 1.5      # DP所必需的梯度裁剪 L2 范数
 
   noise_sigma:
-    common: 0.0001
     seasonal: 0.001
     trend: 0.005
 
