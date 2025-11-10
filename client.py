@@ -120,7 +120,6 @@ class Client:
 
         if is_xpatch_pFL:
             parts = {
-                'common': OrderedDict(),
                 'seasonal': OrderedDict(),
                 'trend': OrderedDict(),
                 'personal': OrderedDict()

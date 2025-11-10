@@ -23,7 +23,6 @@ privacy:
     seasonal: 0.001
     trend: 0.005
 
-
 # 数据与设备设置
 #data:
 #  mode: 'multi_file'  # 使用多文件模式
