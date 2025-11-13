@@ -65,6 +65,8 @@ class Client:
             self.dp_noise_sigma = self.config['privacy']['noise_sigma']
             print(f"[Client {client_id}] 差分隐私已启用. Clip={self.dp_clipping_norm}, Sigma={self.dp_noise_sigma}")
 
+        self.last_train_loss = None
+
     def set_global_model(self, global_parts: dict):
         """
         从服务器接收拆分后的全局模型。
@@ -90,7 +92,9 @@ class Client:
         optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
         criterion = nn.MSELoss()
 
+        epoch_losses = []
         for epoch in range(local_epochs):
+            batch_losses = []
             for x_batch, y_batch in self.dataloader:
                 x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
                 optimizer.zero_grad()
@@ -100,6 +104,14 @@ class Client:
                 if self.dp_enabled:
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.dp_clipping_norm)
                 optimizer.step()
+                batch_losses.append(loss.item())
+
+            epoch_loss = np.mean(batch_losses)
+            epoch_losses.append(epoch_loss)
+
+            # 记录最后一个epoch的平均损失
+        self.last_train_loss = epoch_losses[-1]
+        return self.last_train_loss
 
     def _add_noise_to_part(self, part_dict: OrderedDict, sigma: float) -> OrderedDict:
         """为参数字典中的每个张量添加高斯噪声"""
@@ -147,6 +159,10 @@ class Client:
                 if param.requires_grad:
                     full_params[name] = param.data.clone()
             return {'full_model': full_params}
+
+    def get_train_loss(self):
+        """返回最近一次训练的损失"""
+        return self.last_train_loss
 
     def evaluate(self, save_dir: str):
         # --- 1. 保存最终模型 ---

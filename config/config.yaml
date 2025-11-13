@@ -23,6 +23,13 @@ privacy:
     seasonal: 0.001
     trend: 0.005
 
+aggregation:
+  name: 'fedavg'  # 'fedavg', 'fedprox'
+
+  # FedProx 专用参数
+  mu: 0.01               # 近端项系数
+
+
 # 数据与设备设置
 #data:
 #  mode: 'multi_file'  # 使用多文件模式

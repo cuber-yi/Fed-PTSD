@@ -1,0 +1,37 @@
+aggregation:
+  alpha: 0.7
+  beta1: 0.9
+  beta2: 0.99
+  mu: 0.01
+  name: fedadaptive
+  seasonal_weight: 0.6
+  server_lr: 0.01
+  tau: 1e-3
+  temperature: 2.0
+  trend_weight: 0.4
+data:
+  device: cuda
+  enc_in: 6
+  max_capacity: 2.0
+  mode: single_file_multi_client
+  pre_len: 200
+  single_file: data/batch-1.xlsx
+  window_size: 50
+federation:
+  batch_size: 32
+  local_epochs: 5
+  num_rounds: 50
+model:
+  name: xpatch
+privacy:
+  clipping_norm: 1.5
+  enabled: true
+  noise_sigma:
+    seasonal: 0.001
+    trend: 0.005
+results:
+  save_dir_prefix: result/
+seed: 9
+training:
+  lr: 0.001
+  optimizer: adam

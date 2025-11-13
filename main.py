@@ -31,7 +31,9 @@ def main():
     g = torch.Generator()
     g.manual_seed(seed)
     device = torch.device(config['data']['device'])
+    aggregation_name = config.get('aggregation', {}).get('name', 'fedavg')
     print(f"加载模型: '{config['model']['name']}'. 运行设备: {device}")
+    print(f"聚合策略: {aggregation_name}")
 
     # --- 创建结果保存目录 ---
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -80,21 +82,31 @@ def main():
         print(f"\n{'=' * 20} 通信轮次： {comm_round + 1}/{num_rounds} {'=' * 20}")
         # --- 模型分发 ---
         global_model_parts = server.get_global_model_parts()
-        # 存储所有客户端上传的、拆分后的参数
+        # 存储所有客户端上传的、拆分后的参数和训练损失
         client_parts_list = []
+        client_losses = []
         # --- 客户端本地训练 ---
         for client in clients:
             # 客户端加载拆分后的模型
             client.set_global_model(copy.deepcopy(global_model_parts))
-            client.local_train()
+            # 本地训练并获取损失
+            train_loss = client.local_train()
+            client_losses.append(train_loss)
             # 客户端返回拆分后的本地参数
             local_parts = client.get_local_parameters()
             client_parts_list.append(local_parts)
+            print(f"  Client {client.client_id} 训练完成, 损失: {train_loss:.4f}")
 
-        # 服务器分别聚合所有部分
-        aggregated_parts = server.aggregate_parameters(client_parts_list)
+        # 服务器分别聚合所有部分（传递损失信息）
+        aggregated_parts = server.aggregate_parameters(client_parts_list, client_losses)
         # 更新全局模型
         server.update_global_model(aggregated_parts)
+        # 打印聚合器信息（如果支持）
+        agg_info = server.get_aggregator_info()
+        if agg_info is not None:
+            print(f"  聚合权重 - Max: {agg_info['max_weight']:.4f}, "
+                  f"Min: {agg_info['min_weight']:.4f}, "
+                  f"Std: {agg_info['std_weight']:.4f}")
 
     # --- 最终评估 ---
     print(f"\n{'=' * 20} 开始最终评估 {'=' * 20}")

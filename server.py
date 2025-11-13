@@ -3,6 +3,9 @@ from collections import OrderedDict, defaultdict
 from utils.model_utils import get_model_class
 from client import _classify_xpatch_param
 
+from src.aggregation.fed_avg import FedAvg
+from src.aggregation.fed_prox import FedProx
+
 
 class Server:
     def __init__(self, config: dict, device: torch.device):
@@ -14,6 +17,23 @@ class Server:
 
         ModelClass = get_model_class(self.model_name)
         self.global_model = ModelClass(**model_params).to(self.device)
+
+        # 初始化聚合策略
+        aggregation_name = config.get('aggregation', {}).get('name', 'fedavg').lower()
+        self.aggregator = self._get_aggregator(aggregation_name)
+
+    def _get_aggregator(self, name: str):
+        """根据配置选择聚合策略"""
+        aggregators = {
+            'fedavg': FedAvg,
+            'fedprox': FedProx,
+        }
+
+        if name not in aggregators:
+            print(f"[Warning] 未知聚合策略 '{name}', 使用默认 FedAvg")
+            name = 'fedavg'
+
+        return aggregators[name](self.config)
 
     def get_global_model_parts(self) -> dict:
         """
@@ -36,30 +56,8 @@ class Server:
             # 返回完整模型
             return {'full_model': self.global_model.state_dict()}
 
-    def aggregate_parameters(self, client_parts_list: list) -> dict:
-        # 收集所有参数
-        collected_tensors = defaultdict(lambda: defaultdict(list))
-
-        # 获取所有参数部分的键
-        if not client_parts_list:
-            return {}
-        part_keys = client_parts_list[0].keys()
-
-        for client_parts in client_parts_list:
-            for part_name in part_keys:
-                for key, param_tensor in client_parts[part_name].items():
-                    collected_tensors[part_name][key].append(param_tensor)
-
-        # 分别聚合
-        aggregated_parts = OrderedDict()
-        for part_name, keys_dict in collected_tensors.items():
-            aggregated_parts[part_name] = OrderedDict()
-            for key, tensor_list in keys_dict.items():
-                # 堆叠并沿 dim=0 (客户端维度) 求平均
-                aggregated_tensor = torch.stack(tensor_list).mean(dim=0)
-                aggregated_parts[part_name][key] = aggregated_tensor.to(self.device)
-
-        return aggregated_parts
+    def aggregate_parameters(self, client_parts_list: list, client_losses: list = None) -> dict:
+        return self.aggregator.aggregate(client_parts_list, self.device)
 
     def update_global_model(self, aggregated_parts: dict):
         """用聚合后的新参数更新全局模型"""
@@ -69,3 +67,9 @@ class Server:
             current_state_dict.update(params_dict)
 
         self.global_model.load_state_dict(current_state_dict)
+
+    def get_aggregator_info(self):
+        """获取聚合器信息（用于日志和调试）"""
+        if hasattr(self.aggregator, 'get_weights_info'):
+            return self.aggregator.get_weights_info()
+        return None
