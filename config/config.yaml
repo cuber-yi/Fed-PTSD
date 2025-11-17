@@ -25,9 +25,13 @@ privacy:
 
 aggregation:
   name: 'fedavg'  # 'fedavg', 'fedprox'
+  mu: 0.01               # FedProx专用，近端项系数
 
-  # FedProx 专用参数
-  mu: 0.01               # 近端项系数
+clustering:
+  enabled: true
+  num_clusters: 3
+  recluster_every_n_rounds: 10 # 每隔多少轮重新计算一次聚类
+  cluster_on: 'both'  # 依据哪个模型组件进行聚类 ('trend', 'seasonal', 或 'both')
 
 
 # 数据与设备设置
