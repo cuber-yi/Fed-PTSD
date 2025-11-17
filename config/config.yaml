@@ -29,8 +29,15 @@ aggregation:
 
 clustering:
   enabled: true
+  method: 'gmm'  # 可选: 'kmeans', 'dbscan', 'gmm'
+
+  # K-Means & GMM 通用参数
   num_clusters: 3
-  recluster_every_n_rounds: 10 # 每隔多少轮重新计算一次聚类
+  # DBSCAN 专用参数
+  eps: 0.5
+  min_samples: 2
+
+  recluster_every_n_rounds: 10
   cluster_on: 'both'  # 依据哪个模型组件进行聚类 ('trend', 'seasonal', 或 'both')
 
 
@@ -57,5 +64,6 @@ data:
  max_capacity: 2.0
  enc_in: 6
  device: 'cuda'
+
 
 

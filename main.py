@@ -57,7 +57,7 @@ def main():
             max_capacity=config['data']['max_capacity'],
             generator=g
         )
-    else:
+    elif data_mode == 'multi_file':
         print("从多文件配置客户端")
         client_dataloaders = setup_clients_by_file(
             file_paths=config['data']['files'],
