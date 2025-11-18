@@ -32,7 +32,7 @@ clustering:
   method: 'gmm'  # 可选: 'kmeans', 'dbscan', 'gmm'
 
   # K-Means & GMM 通用参数
-  num_clusters: 3
+  num_clusters: 6
   # DBSCAN 专用参数
   eps: 0.5
   min_samples: 2
@@ -56,14 +56,24 @@ clustering:
 #  enc_in: 6
 #  device: 'cuda'
 
+#data:
+# mode: 'single_file_multi_client'  # 使用单文件多客户端模式
+# single_file: 'data/batch-1.xlsx'  # 指定单个数据文件
+# window_size: 50
+# pre_len: 200
+# max_capacity: 2.0
+# enc_in: 6
+# device: 'cuda'
+
 data:
- mode: 'single_file_multi_client'  # 使用单文件多客户端模式
- single_file: 'data/batch-1.xlsx'  # 指定单个数据文件
- window_size: 50
- pre_len: 200
- max_capacity: 2.0
- enc_in: 6
- device: 'cuda'
-
-
+  mode: 'multi_file_all_sheets'
+  files:
+    - 'data/batch-1.xlsx'
+    - 'data/batch-2.xlsx'
+    - 'data/batch-3.xlsx'
+  window_size: 50
+  pre_len: 200
+  max_capacity: 2.0
+  enc_in: 6
+  device: 'cuda'
 

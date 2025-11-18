@@ -5,7 +5,7 @@ import os
 import datetime
 import random
 from utils.config_utils import load_config
-from utils.data_loader import setup_clients_by_sheet, setup_clients_by_file
+from utils.data_loader import setup_clients_by_sheet, setup_clients_by_file, setup_clients_multi_file_by_sheet
 from utils.reporting_utils import save_summary_report
 from client import Client
 from server import Server
@@ -60,6 +60,17 @@ def main():
     elif data_mode == 'multi_file':
         print("从多文件配置客户端")
         client_dataloaders = setup_clients_by_file(
+            file_paths=config['data']['files'],
+            window_size=config['data']['window_size'],
+            pre_len=config['data']['pre_len'],
+            batch_size=config['federation']['batch_size'],
+            max_capacity=config['data']['max_capacity'],
+            generator=g
+        )
+    elif data_mode == 'multi_file_all_sheets':
+        print("配置模式: 多文件 - 全Sheet独立客户端 (Multi-File Individual Sheets)")
+        # 确保这里使用的是 files 列表
+        client_dataloaders = setup_clients_multi_file_by_sheet(
             file_paths=config['data']['files'],
             window_size=config['data']['window_size'],
             pre_len=config['data']['pre_len'],

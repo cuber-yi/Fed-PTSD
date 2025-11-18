@@ -183,4 +183,47 @@ def setup_clients_by_sheet(file_path, window_size, pre_len, batch_size, max_capa
     return client_dataloaders
 
 
+def setup_clients_multi_file_by_sheet(file_paths, window_size, pre_len, batch_size, max_capacity, generator):
+    """
+    多文件模式，但将每个文件中的每个Sheet都视为一个独立的客户端。
+    """
+    client_dataloaders = []
+    global_client_id = 0
+
+    for file_path in file_paths:
+        print(f"正在处理文件以分配客户端: {file_path}")
+        try:
+            # 获取该文件下所有sheet名称
+            xls = pd.ExcelFile(file_path)
+            sheet_names = xls.sheet_names
+            all_battery_data = load_battery_data(file_path)
+
+            for sheet_name in sheet_names:
+                df = all_battery_data[sheet_name]
+
+                # 预处理
+                X_scaled, y, _ = preprocess_data(df, max_capacity)
+                X_windowed, y_windowed = create_windowed_dataset(X_scaled, y, window_size, pre_len)
+
+                if len(X_windowed) == 0:
+                    print(f"  - [Warning] 文件 {file_path} 中的 Sheet '{sheet_name}' 样本不足，已跳过。")
+                    continue
+
+                # 创建数据集和加载器
+                X_tensor = torch.FloatTensor(X_windowed)
+                y_tensor = torch.FloatTensor(y_windowed)
+                dataset = TensorDataset(X_tensor, y_tensor)
+
+                dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True,
+                                        worker_init_fn=seed_worker, generator=generator)
+                client_dataloaders.append(dataloader)
+
+                print(
+                    f"--> 创建客户端 {global_client_id}: 来自 {file_path} 的 Sheet '{sheet_name}' ({len(dataset)} 样本)")
+                global_client_id += 1
+
+        except Exception as e:
+            print(f"处理文件 {file_path} 时出错: {e}")
+
+    return client_dataloaders
 
