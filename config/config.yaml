@@ -39,7 +39,7 @@ clustering:
   min_samples: 2
 
   recluster_every_n_rounds: 10
-  cluster_on: 'both'  # 依据哪个模型组件进行聚类 ('trend', 'seasonal', 或 'both')
+  cluster_on: 'seasonal'  # 依据哪个模型组件进行聚类 ('trend', 'seasonal', 或 'both')
 
 
 # 数据与设备设置
@@ -57,24 +57,24 @@ clustering:
 #  enc_in: 6
 #  device: 'cuda'
 
-data:
- mode: 'single_file_multi_client'  # 使用单文件多客户端模式
- single_file: 'data/batch-1.xlsx'  # 指定单个数据文件
- window_size: 50
- pre_len: 200
- max_capacity: 2.0
- enc_in: 6
- device: 'cuda'
-
 #data:
-#  mode: 'multi_file_all_sheets'
-#  files:
-#    - 'data/batch-1.xlsx'
-#    - 'data/batch-2.xlsx'
-#    - 'data/batch-3.xlsx'
-#  window_size: 50
-#  pre_len: 200
-#  max_capacity: 2.0
-#  enc_in: 6
-#  device: 'cuda'
+# mode: 'single_file_multi_client'  # 使用单文件多客户端模式
+# single_file: 'data/batch-1.xlsx'  # 指定单个数据文件
+# window_size: 50
+# pre_len: 200
+# max_capacity: 2.0
+# enc_in: 6
+# device: 'cuda'
+
+data:
+  mode: 'multi_file_all_sheets'
+  files:
+    - 'data/batch-1.xlsx'
+    - 'data/batch-2.xlsx'
+    - 'data/batch-3.xlsx'
+  window_size: 50
+  pre_len: 200
+  max_capacity: 2.0
+  enc_in: 6
+  device: 'cuda'
 
