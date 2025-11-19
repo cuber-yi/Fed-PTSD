@@ -71,18 +71,24 @@ class Client:
         """
         从服务器接收拆分后的全局模型。
         """
-        is_xpatch_pFL = self.model_name.lower() == 'xpatch'
+        pfl_enabled = self.config['model'].get('pfl_enabled', True)
+        is_xpatch_pFL = (self.model_name.lower() == 'xpatch') and pfl_enabled
 
         if is_xpatch_pFL:
             local_state_dict = self.model.state_dict()
-            local_state_dict.update(global_parts['seasonal'])
-            local_state_dict.update(global_parts['trend'])
-            # 加载合并后的状态
-            self.model.load_state_dict(local_state_dict)
+            if 'seasonal' in global_parts and 'trend' in global_parts:
+                local_state_dict.update(global_parts['seasonal'])
+                local_state_dict.update(global_parts['trend'])
+                self.model.load_state_dict(local_state_dict)
+            else:
+                print(f"[Client {self.client_id}] Warning: Expected split parts but got {global_parts.keys()}")
 
         else:
             # --- 加载完整模型 ---
-            self.model.load_state_dict(global_parts['full_model'])
+            if 'full_model' in global_parts:
+                self.model.load_state_dict(global_parts['full_model'])
+            else:
+                pass
 
     def local_train(self):
         """执行本地训练 (同时训练共享层和个性化层)"""
@@ -128,7 +134,8 @@ class Client:
         """
         返回本地训练后的模型参数，拆分为多个部分。
         """
-        is_xpatch_pFL = self.model_name.lower() == 'xpatch'
+        pfl_enabled = self.config['model'].get('pfl_enabled', True)
+        is_xpatch_pFL = (self.model_name.lower() == 'xpatch') and pfl_enabled
 
         if is_xpatch_pFL:
             parts = {

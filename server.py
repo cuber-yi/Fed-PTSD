@@ -2,9 +2,10 @@ import torch
 from collections import OrderedDict, defaultdict
 from utils.model_utils import get_model_class
 from client import _classify_xpatch_param
-import numpy as np
 from src.aggregation.fed_avg import FedAvg
 from src.aggregation.fed_prox import FedProx
+from src.aggregation.fed_avgm import FedAvgM
+from src.aggregation.fed_adam import FedAdam
 from src.cluster import get_clustering_strategy
 
 
@@ -53,6 +54,8 @@ class Server:
         aggregators = {
             'fedavg': FedAvg,
             'fedprox': FedProx,
+            'fedavgm': FedAvgM,
+            'fedadam': FedAdam,
         }
 
         if name not in aggregators:
@@ -71,7 +74,9 @@ class Server:
             model_to_use = self.cluster_models.get(0, self._create_new_model())
 
         # --- 拆分模型 ---
-        is_xpatch_pFL = self.model_name.lower() == 'xpatch'
+        pfl_enabled = self.config['model'].get('pfl_enabled', True)
+        is_xpatch_pFL = (self.model_name.lower() == 'xpatch') and pfl_enabled
+
         if is_xpatch_pFL:
             parts = {'seasonal': OrderedDict(), 'trend': OrderedDict()}
             for name, param in model_to_use.named_parameters():
@@ -80,6 +85,7 @@ class Server:
                     parts[part_name][name] = param.data.clone()
             return parts
         else:
+            # 如果 PFL 被禁用，下发完整模型参数
             return {'full_model': model_to_use.state_dict()}
 
     def aggregate_parameters(self, client_parts_dict: dict, client_losses_dict: dict):

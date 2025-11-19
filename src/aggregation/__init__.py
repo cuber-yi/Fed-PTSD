@@ -1,12 +1,12 @@
-"""
-联邦学习聚合策略模块
-"""
-
 from .fed_avg import FedAvg
 from .fed_prox import FedProx
+from .fed_avgm import FedAvgM
+from .fed_adam import FedAdam
 
 __all__ = [
     'FedAvg',
     'FedProx',
+    'FedAvgM',
+    'FedAdam',
 ]
 
