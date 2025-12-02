@@ -40,17 +40,18 @@ class Server:
         self.cluster_models = {}
         self.cluster_models[0] = self._create_new_model()
 
-        # 初始化聚合策略
-        aggregation_name = config.get('aggregation', {}).get('name', 'fedavg').lower()
-        self.aggregator = self._get_aggregator(aggregation_name)
+        # --- 聚合策略初始化 ---
+        aggregator_name = config.get('aggregation', {}).get('name', 'fedavg').lower()
+        self.aggregator_class = self._get_aggregator_class(aggregator_name)
+        self.cluster_aggregators = {}
 
     def _create_new_model(self):
         """辅助函数：创建一个新的模型实例"""
         ModelClass = get_model_class(self.model_name)
         return ModelClass(**self.model_params).to(self.device)
 
-    def _get_aggregator(self, name: str):
-        """根据配置选择聚合策略"""
+    def _get_aggregator_class(self, name: str):
+        """根据配置返回聚合策略类"""
         aggregators = {
             'fedavg': FedAvg,
             'fedprox': FedProx,
@@ -60,9 +61,16 @@ class Server:
 
         if name not in aggregators:
             print(f"[Warning] 未知聚合策略 '{name}', 使用默认 FedAvg")
-            name = 'fedavg'
+            return FedAvg
 
-        return aggregators[name](self.config)
+        return aggregators[name]
+
+    def _get_cluster_aggregator(self, cluster_id: int):
+        """获取或创建指定 Cluster 的聚合器实例"""
+        if cluster_id not in self.cluster_aggregators:
+            # 实例化一个新的聚合器
+            self.cluster_aggregators[cluster_id] = self.aggregator_class(self.config)
+        return self.cluster_aggregators[cluster_id]
 
     def get_global_model_parts(self, client_id: int) -> dict:
         # 1. 找到该客户端所属的 cluster
@@ -111,15 +119,13 @@ class Server:
                 if not parts_list:
                     continue
 
-                # losses_list = cluster_losses[cluster_id] # FedProx 可能需要用到 loss
-                # print(f"  Aggregating for Cluster {cluster_id} with {len(parts_list)} clients...")
-                aggregated_parts = self.aggregator.aggregate(parts_list, self.device)
+                aggregator = self._get_cluster_aggregator(cluster_id)
+                aggregated_parts = aggregator.aggregate(parts_list, self.device)
                 self.update_global_model(aggregated_parts, cluster_id)
             return
 
         # --- 情况 B: 软聚类 (client_weights 存在) ---
-        print(
-            f"[Server] Performing Soft Aggregation ({self.clustering_method.upper()})")
+        print(f"[Server] Performing Soft Aggregation ({self.clustering_method.upper()})")
 
         for cluster_k in range(self.num_clusters):
             weighted_sum_parts = defaultdict(lambda: defaultdict(float))
@@ -127,6 +133,7 @@ class Server:
             count_contributors = 0
             # 遍历所有客户端进行加权
             for client_id, parts in client_parts_dict.items():
+                # 获取 Client i 对 Cluster k 的权重
                 w_ik = self.client_weights[client_id][cluster_k]
 
                 if w_ik < 1e-6:
@@ -148,6 +155,7 @@ class Server:
                 for part_name in weighted_sum_parts:
                     final_parts[part_name] = OrderedDict()
                     for key, val_tensor in weighted_sum_parts[part_name].items():
+                        # 归一化
                         final_parts[part_name][key] = (val_tensor / total_weight_k).to(self.device)
 
                 # 更新对应的 cluster 模型
@@ -162,6 +170,8 @@ class Server:
 
         model_to_update = self.cluster_models[cluster_id]
         current_state_dict = model_to_update.state_dict()
+
+        # 将聚合后的部分参数更新到完整模型状态中
         for part_name, params_dict in aggregated_parts.items():
             current_state_dict.update(params_dict)
 
@@ -184,6 +194,8 @@ class Server:
         self.client_clusters = new_assignments
         self.num_clusters = num_clusters_found
         self.client_weights = weights
+
+        # 基于新聚类初始化模型中心
         self._initialize_cluster_models(client_parts_dict)
 
     def _initialize_cluster_models(self, client_parts_dict):
@@ -198,10 +210,10 @@ class Server:
             if not parts_list:
                 continue
 
-            # 使用 FedAvg 计算该簇的初始中心
-            init_parts = self.aggregator.aggregate(parts_list, self.device)
-            new_model = self._create_new_model()
+            aggregator = self._get_cluster_aggregator(cluster_id)
+            init_parts = aggregator.aggregate(parts_list, self.device)
 
+            new_model = self._create_new_model()
             current_state_dict = new_model.state_dict()
             for part_name, params_dict in init_parts.items():
                 current_state_dict.update(params_dict)
@@ -209,17 +221,25 @@ class Server:
 
             new_cluster_models[cluster_id] = new_model
 
+        # 填补空缺的 Cluster 模型 (如果有)
         for k in range(self.num_clusters):
             if k not in new_cluster_models:
                 if k in self.cluster_models:
-                    new_cluster_models[k] = self.cluster_models[k]  # 保留旧的
+                    new_cluster_models[k] = self.cluster_models[k]
                 else:
-                    new_cluster_models[k] = self._create_new_model()  # 新建随机的
+                    new_cluster_models[k] = self._create_new_model()
 
         self.cluster_models = new_cluster_models
 
     def get_aggregator_info(self):
         """获取聚合器信息"""
-        if hasattr(self.aggregator, 'get_weights_info'):
-            return self.aggregator.get_weights_info()
+        # 优先返回 Cluster 0 或第一个可用聚合器的信息
+        target_agg = None
+        if 0 in self.cluster_aggregators:
+            target_agg = self.cluster_aggregators[0]
+        elif self.cluster_aggregators:
+            target_agg = list(self.cluster_aggregators.values())[0]
+
+        if target_agg and hasattr(target_agg, 'get_weights_info'):
+            return target_agg.get_weights_info()
         return None

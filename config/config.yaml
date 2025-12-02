@@ -30,7 +30,7 @@ aggregation:
 
 clustering:
   enabled: true
-  method: 'kmeans'  # 可选: 'kmeans', 'dbscan', 'gmm'
+  method: 'gmm'  # 可选: 'kmeans', 'dbscan', 'gmm'
 
   # K-Means & GMM 通用参数
   num_clusters: 6
