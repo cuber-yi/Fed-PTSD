@@ -15,7 +15,6 @@ from client import Client
 from server import Server
 from src.cluster.utils import vectorize_client_params
 
-
 plt.rcParams['axes.unicode_minus'] = False
 plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'DejaVu Sans', 'Arial']
 
@@ -53,6 +52,7 @@ def visualize_clustering(server, client_parts_dict, round_num, save_dir, client_
     """
     执行 t-SNE 可视化
     """
+    # 注意：这里可能会抛出 NaN 错误，请确保您的 src/cluster/utils.py 已修复
     client_ids, X = vectorize_client_params(client_parts_dict, cluster_on=cluster_on)
 
     if len(client_ids) < 2: return
@@ -60,7 +60,11 @@ def visualize_clustering(server, client_parts_dict, round_num, save_dir, client_
     # t-SNE 降维
     perp = min(30, len(client_ids) - 1)
     tsne = TSNE(n_components=2, random_state=42, perplexity=perp, init='pca', learning_rate='auto')
-    X_embedded = tsne.fit_transform(X)
+    try:
+        X_embedded = tsne.fit_transform(X)
+    except Exception as e:
+        print(f"[Viz Error] t-SNE failed: {e}")
+        return
 
     # 获取聚类结果
     cluster_assignments = [server.client_clusters.get(cid, 0) for cid in client_ids]
@@ -93,22 +97,24 @@ def visualize_clustering(server, client_parts_dict, round_num, save_dir, client_
 def run_group_experiment(group_name, files, win, pre, n_clusters, base_config, parent_dir):
     """
     运行一组数据的实验
-    :param n_clusters: 该组数据指定的聚类数量
+    :param n_clusters: 该组数据指定的聚类数量 (用于 KMeans 和 GMM)
     """
     # 1. 准备标签
     source_labels = get_detailed_source_labels(files)
 
-    # 2. 定义要对比的策略
+    # 2. 定义要对比的策略 (已修改：包含三种聚类方法，且 cluster_on 均为 both)
     strategies = [
-        {'name': 'No_Clustering', 'clustering': False, 'cluster_on': 'trend'},
-        {'name': 'Cluster_Trend', 'clustering': True, 'cluster_on': 'trend'},
+        {'name': 'No_Clustering', 'clustering': False, 'cluster_on': 'both'},
+        {'name': 'KMeans_Both', 'clustering': True, 'method': 'kmeans', 'cluster_on': 'both'},
+        {'name': 'DBSCAN_Both', 'clustering': True, 'method': 'dbscan', 'cluster_on': 'both'},
+        {'name': 'GMM_Both', 'clustering': True, 'method': 'gmm', 'cluster_on': 'both'},
     ]
 
     results = []
     print(f"\n{'#' * 60}")
     print(f" >>> Group Experiment: {group_name}")
     print(f" >>> Files: {files}")
-    print(f" >>> Param: Win={win}, Pred={pre}, NumClusters={n_clusters}")
+    print(f" >>> Param: Win={win}, Pred={pre}, Target Clusters={n_clusters}")
     print(f"{'#' * 60}")
 
     for strat in strategies:
@@ -129,13 +135,20 @@ def run_group_experiment(group_name, files, win, pre, n_clusters, base_config, p
                 else:
                     config['model']['config'].update(model_cfg)
 
-        # 策略参数
+        # 策略参数设置
         config['clustering']['enabled'] = strat['clustering']
+        # 统一设置 cluster_on
+        config['clustering']['cluster_on'] = strat['cluster_on']
+
         if strat['clustering']:
-            config['clustering']['cluster_on'] = strat['cluster_on']
-            # 【修改点】使用传入的 n_clusters
-            config['clustering']['num_clusters'] = n_clusters
-            config['clustering']['method'] = 'kmeans'
+            method = strat['method']
+            config['clustering']['method'] = method
+
+            # 只有 KMeans 和 GMM 需要显式设置簇数量
+            # DBSCAN 使用 eps (默认0.5) 和 min_samples (默认2)
+            if method in ['kmeans', 'gmm']:
+                config['clustering']['num_clusters'] = n_clusters
+
             config['clustering']['recluster_every_n_rounds'] = 5
 
         # 数据参数
@@ -160,7 +173,10 @@ def run_group_experiment(group_name, files, win, pre, n_clusters, base_config, p
         os.makedirs(os.path.join(exp_dir, 'models'), exist_ok=True)
         os.makedirs(viz_dir, exist_ok=True)
 
-        print(f"   Running Strategy: {strat['name']} (K={n_clusters if strat['clustering'] else 'N/A'})...")
+        info_msg = f"Running Strategy: {strat['name']}"
+        if strat['clustering']:
+            info_msg += f" (Method={strat['method']}, On={strat['cluster_on']})"
+        print(f"   {info_msg}...")
 
         # --- 初始化 ---
         set_seed(42)
@@ -186,6 +202,7 @@ def run_group_experiment(group_name, files, win, pre, n_clusters, base_config, p
 
         # --- 训练 ---
         for comm_round in range(config['federation']['num_rounds']):
+            # 初始聚类 (Round 0)
             if comm_round == 0 and config['clustering']['enabled']:
                 init_parts = server.get_global_model_parts(0)
                 tmp_parts = {}
@@ -209,6 +226,7 @@ def run_group_experiment(group_name, files, win, pre, n_clusters, base_config, p
             # 2. 可视化
             viz_rounds = [0, 5, 20, 49]
             if comm_round in viz_rounds and client_parts_dict:
+                # 无论是否聚类，都基于设定的 cluster_on (both) 进行可视化
                 visualize_clustering(
                     server, client_parts_dict, comm_round, viz_dir, current_labels,
                     cluster_on=strat['cluster_on']
@@ -288,7 +306,7 @@ def main():
     if all_results:
         df = pd.DataFrame(all_results)
         print("\n" + "=" * 60)
-        print("Experiment 3 Summary (Separate Groups)")
+        print("Experiment 3 Summary (KMeans vs DBSCAN vs GMM)")
         print("=" * 60)
         print(df.to_string(index=False))
         df.to_csv(os.path.join(parent_dir, 'exp_3_summary.csv'), index=False)

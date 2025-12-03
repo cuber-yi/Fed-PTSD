@@ -1,12 +1,14 @@
 from .kmeans import KMeansClustering
 from .dbscan import DBSCANClustering
 from .gmm import GMMClustering
+from .spectral import SpectralClusteringStrategy
 
 # 注册表
 CLUSTERING_STRATEGIES = {
     'kmeans': KMeansClustering,
     'dbscan': DBSCANClustering,
-    'gmm': GMMClustering
+    'gmm': GMMClustering,
+    'spectral': SpectralClusteringStrategy
 }
 
 

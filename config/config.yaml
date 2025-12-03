@@ -30,7 +30,7 @@ aggregation:
 
 clustering:
   enabled: true
-  method: 'gmm'  # 可选: 'kmeans', 'dbscan', 'gmm'
+  method: 'spectral'  # 可选: 'kmeans', 'dbscan', 'gmm', 'spectral'
 
   # K-Means & GMM 通用参数
   num_clusters: 6
@@ -39,7 +39,10 @@ clustering:
   min_samples: 2
 
   recluster_every_n_rounds: 10
-  cluster_on: 'seasonal'  # 依据哪个模型组件进行聚类 ('trend', 'seasonal', 或 'both')
+  cluster_on: 'both'  # 依据哪个模型组件进行聚类 ('trend', 'seasonal', 或 'both')
+
+  affinity: 'nearest_neighbors'
+  n_neighbors: 5
 
 
 # 数据与设备设置
