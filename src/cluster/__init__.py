@@ -1,20 +1,12 @@
 from .kmeans import KMeansClustering
-from .dbscan import DBSCANClustering
 from .gmm import GMMClustering
 from .spectral import SpectralClusteringStrategy
-from .hierarchical import HierarchicalClusteringStrategy
-from .affinity import AffinityPropagationClustering
-from .birch import BirchClustering
 
 # 注册表
 CLUSTERING_STRATEGIES = {
     'kmeans': KMeansClustering,
-    'dbscan': DBSCANClustering,
     'gmm': GMMClustering,
     'spectral': SpectralClusteringStrategy,
-    'hierarchical': HierarchicalClusteringStrategy,
-    'affinity': AffinityPropagationClustering,
-    'birch': BirchClustering
 }
 
 

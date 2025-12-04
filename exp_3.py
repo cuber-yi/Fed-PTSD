@@ -90,13 +90,9 @@ def run_group_experiment(group_name, files, win, pre, n_clusters, base_config, p
     source_labels = get_detailed_source_labels(files)
 
     strategies = [
-        # {'name': 'No_Clustering', 'clustering': False, 'cluster_on': 'both'},
-        # {'name': 'KMeans', 'clustering': True, 'method': 'kmeans', 'cluster_on': 'both'},
-        # {'name': 'DBSCAN', 'clustering': True, 'method': 'dbscan', 'cluster_on': 'both'},
+        {'name': 'No_Clustering', 'clustering': False, 'cluster_on': 'both'},
+        {'name': 'KMeans', 'clustering': True, 'method': 'kmeans', 'cluster_on': 'both'},
         {'name': 'GMM', 'clustering': True, 'method': 'gmm', 'cluster_on': 'both'},
-        {'name': 'Hierarchical', 'clustering': True, 'method': 'hierarchical', 'cluster_on': 'both'},
-        {'name': 'Birch', 'clustering': True, 'method': 'birch', 'cluster_on': 'both'},
-        {'name': 'AffinityProp', 'clustering': True, 'method': 'affinity', 'cluster_on': 'both'},
     ]
 
     results = []
@@ -133,7 +129,7 @@ def run_group_experiment(group_name, files, win, pre, n_clusters, base_config, p
                 config['clustering']['num_clusters'] = n_clusters
 
             if method == 'affinity':
-                config['clustering']['damping'] = 0.8  # 0.5-1.0, 较高值可避免震荡
+                config['clustering']['damping'] = 0.8
 
             if method == 'birch':
                 config['clustering']['threshold'] = 0.5
