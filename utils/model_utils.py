@@ -3,6 +3,7 @@ from src.model.RNN import RNN
 from src.model.LSTM import LSTM
 from src.model.GRU import GRU
 from src.model.MLP import MLP
+from src.model.DLinear import DLinear
 
 
 MODEL_REGISTRY = {
@@ -11,6 +12,7 @@ MODEL_REGISTRY = {
     'lstm': LSTM,
     'gru': GRU,
     'mlp': MLP,
+    'dlinear': DLinear
 }
 
 
