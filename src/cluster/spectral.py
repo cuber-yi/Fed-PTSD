@@ -52,7 +52,7 @@ class SpectralClusteringStrategy:
         try:
             labels = spectral.fit_predict(X)
         except Exception as e:
-            print(f"[Cluster Error] 谱聚类失败: {e}。回退到默认 Cluster 0。")
+            print(f"[Cluster Error] 谱聚类失败: {e}。")
             return {cid: 0 for cid in client_ids}, 1, None
 
         # 5. 格式化输出

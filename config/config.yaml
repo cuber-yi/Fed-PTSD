@@ -1,7 +1,7 @@
 seed: 9
 
 federation:
-  num_rounds: 50
+  num_rounds: 2
   local_epochs: 5
   batch_size: 32
 

@@ -33,12 +33,10 @@ def set_seed(seed):
 def get_detailed_source_labels(file_paths):
     """
     辅助函数：生成更详细的标签（用于可视化）
-    返回: list of strings, e.g., ['batch-1', 'batch-1', ..., 'batch-2']
     """
     labels = []
     for fp in file_paths:
         try:
-            # 提取文件名作为标签 (例如 'batch-1')
             file_name = os.path.basename(fp).split('.')[0]
             xls = pd.ExcelFile(fp)
             sheet_names = xls.sheet_names
@@ -52,12 +50,9 @@ def visualize_clustering(server, client_parts_dict, round_num, save_dir, client_
     """
     执行 t-SNE 可视化
     """
-    # 注意：这里可能会抛出 NaN 错误，请确保您的 src/cluster/utils.py 已修复
     client_ids, X = vectorize_client_params(client_parts_dict, cluster_on=cluster_on)
-
     if len(client_ids) < 2: return
 
-    # t-SNE 降维
     perp = min(30, len(client_ids) - 1)
     tsne = TSNE(n_components=2, random_state=42, perplexity=perp, init='pca', learning_rate='auto')
     try:
@@ -66,56 +61,49 @@ def visualize_clustering(server, client_parts_dict, round_num, save_dir, client_
         print(f"[Viz Error] t-SNE failed: {e}")
         return
 
-    # 获取聚类结果
     cluster_assignments = [server.client_clusters.get(cid, 0) for cid in client_ids]
     sources = [client_source_labels[cid] for cid in client_ids]
 
     plt.figure(figsize=(10, 8))
     unique_sources = sorted(list(set(sources)))
-    # 使用 tab10 或 tab20 颜色板
     source_to_color = {s: plt.cm.tab10(i % 10) for i, s in enumerate(unique_sources)}
 
     for i, cid in enumerate(client_ids):
         x, y = X_embedded[i]
         s = sources[i]
         c_id = cluster_assignments[i]
-
-        # 标记: 数字表示被算法分到了哪个 Cluster
         marker = f"${c_id}$"
-
         plt.scatter(x, y, c=[source_to_color[s]], s=180, marker=marker, alpha=0.8,
                     label=s if s not in plt.gca().get_legend_handles_labels()[1] else "")
 
-    plt.title(f"Round {round_num} | Cluster On: {cluster_on.upper()}\nColor=Batch File, Number=Cluster ID")
+    plt.title(f"Round {round_num} | Cluster On: {cluster_on.upper()}\nColor=Source, Number=Cluster ID")
     plt.legend(title="Batch Source", loc='best')
     plt.grid(True, alpha=0.3)
-
     plt.savefig(os.path.join(save_dir, f"tsne_round_{round_num:03d}.png"), dpi=150)
     plt.close()
 
 
 def run_group_experiment(group_name, files, win, pre, n_clusters, base_config, parent_dir):
     """
-    运行一组数据的实验
-    :param n_clusters: 该组数据指定的聚类数量 (用于 KMeans 和 GMM)
+    运行一组数据的实验，对比多种聚类策略
     """
-    # 1. 准备标签
     source_labels = get_detailed_source_labels(files)
 
-    # 2. 定义要对比的策略 (已修改：包含三种聚类方法，且 cluster_on 均为 both)
     strategies = [
-        {'name': 'No_Clustering', 'clustering': False, 'cluster_on': 'both'},
-        {'name': 'KMeans_Both', 'clustering': True, 'method': 'kmeans', 'cluster_on': 'both'},
-        {'name': 'DBSCAN_Both', 'clustering': True, 'method': 'dbscan', 'cluster_on': 'both'},
-        {'name': 'GMM_Both', 'clustering': True, 'method': 'gmm', 'cluster_on': 'both'},
+        # {'name': 'No_Clustering', 'clustering': False, 'cluster_on': 'both'},
+        # {'name': 'KMeans', 'clustering': True, 'method': 'kmeans', 'cluster_on': 'both'},
+        # {'name': 'DBSCAN', 'clustering': True, 'method': 'dbscan', 'cluster_on': 'both'},
+        {'name': 'GMM', 'clustering': True, 'method': 'gmm', 'cluster_on': 'both'},
+        {'name': 'Hierarchical', 'clustering': True, 'method': 'hierarchical', 'cluster_on': 'both'},
+        {'name': 'Birch', 'clustering': True, 'method': 'birch', 'cluster_on': 'both'},
+        {'name': 'AffinityProp', 'clustering': True, 'method': 'affinity', 'cluster_on': 'both'},
     ]
 
     results = []
-    print(f"\n{'#' * 60}")
+    print(f"\n{'#' * 80}")
     print(f" >>> Group Experiment: {group_name}")
-    print(f" >>> Files: {files}")
-    print(f" >>> Param: Win={win}, Pred={pre}, Target Clusters={n_clusters}")
-    print(f"{'#' * 60}")
+    print(f" >>> Target Clusters: {n_clusters}")
+    print(f"{'#' * 80}")
 
     for strat in strategies:
         exp_name = f"{group_name}_{strat['name']}"
@@ -125,41 +113,42 @@ def run_group_experiment(group_name, files, win, pre, n_clusters, base_config, p
         config['model']['name'] = 'xpatch'
         config['model']['config'] = {}
 
-        # 加载 xPatch 参数
         model_config_path = Path('config/xpatch.yaml')
         if model_config_path.exists():
             with open(model_config_path, 'r', encoding='utf-8') as f:
                 model_cfg = yaml.safe_load(f)
-                if 'config' in model_cfg:
-                    config['model']['config'].update(model_cfg['config'])
-                else:
-                    config['model']['config'].update(model_cfg)
+                config['model']['config'].update(model_cfg.get('config', model_cfg))
 
-        # 策略参数设置
+        # 聚类基础设置
         config['clustering']['enabled'] = strat['clustering']
-        # 统一设置 cluster_on
         config['clustering']['cluster_on'] = strat['cluster_on']
 
         if strat['clustering']:
             method = strat['method']
             config['clustering']['method'] = method
-
-            # 只有 KMeans 和 GMM 需要显式设置簇数量
-            # DBSCAN 使用 eps (默认0.5) 和 min_samples (默认2)
-            if method in ['kmeans', 'gmm']:
-                config['clustering']['num_clusters'] = n_clusters
-
             config['clustering']['recluster_every_n_rounds'] = 5
 
-        # 数据参数
+            # --- 为不同算法注入特定参数 ---
+            if method in ['kmeans', 'gmm', 'spectral', 'hierarchical', 'birch']:
+                config['clustering']['num_clusters'] = n_clusters
+
+            if method == 'affinity':
+                config['clustering']['damping'] = 0.8  # 0.5-1.0, 较高值可避免震荡
+
+            if method == 'birch':
+                config['clustering']['threshold'] = 0.5
+
+            # 4. DBSCAN (eps, min_samples 使用 config.yaml 默认值或在此微调)
+            # config['clustering']['eps'] = 0.5
+
+        # 数据与训练设置
         config['data']['mode'] = 'multi_file_all_sheets'
         config['data']['files'] = files
         config['data']['window_size'] = win
         config['data']['pre_len'] = pre
-        config['federation']['num_rounds'] = 50
+        config['federation']['num_rounds'] = 40
         config['privacy']['enabled'] = False
 
-        # 维度注入
         config['model']['config']['enc_in'] = config['data']['enc_in']
         config['model']['config']['pred_len'] = pre
         config['model']['config']['seq_len'] = win
@@ -169,38 +158,29 @@ def run_group_experiment(group_name, files, win, pre, n_clusters, base_config, p
         # --- 目录准备 ---
         exp_dir = os.path.join(parent_dir, exp_name)
         viz_dir = os.path.join(exp_dir, 'viz')
+
         os.makedirs(os.path.join(exp_dir, 'results'), exist_ok=True)
         os.makedirs(os.path.join(exp_dir, 'models'), exist_ok=True)
         os.makedirs(viz_dir, exist_ok=True)
 
-        info_msg = f"Running Strategy: {strat['name']}"
-        if strat['clustering']:
-            info_msg += f" (Method={strat['method']}, On={strat['cluster_on']})"
-        print(f"   {info_msg}...")
+        print(f"Running Strategy: {strat['name']}")
 
         # --- 初始化 ---
-        set_seed(42)
+        set_seed(2024)
         g = torch.Generator()
-        g.manual_seed(42)
+        g.manual_seed(2024)
 
-        try:
-            client_dataloaders = setup_clients_multi_file_by_sheet(
-                file_paths=files, window_size=win, pre_len=pre,
-                batch_size=32, max_capacity=2.0, generator=g
-            )
-        except Exception as e:
-            print(f"   Skipping {group_name} due to data error: {e}")
-            continue
-
-        if not client_dataloaders: continue
+        client_dataloaders = setup_clients_multi_file_by_sheet(
+            file_paths=files, window_size=win, pre_len=pre,
+            batch_size=32, max_capacity=2.0, generator=g
+        )
 
         num_clients = len(client_dataloaders)
         clients = [Client(i, dl, config, device) for i, dl in enumerate(client_dataloaders)]
         server = Server(config, num_clients, device)
-
         current_labels = source_labels[:num_clients]
 
-        # --- 训练 ---
+        # --- 训练循环 ---
         for comm_round in range(config['federation']['num_rounds']):
             # 初始聚类 (Round 0)
             if comm_round == 0 and config['clustering']['enabled']:
@@ -213,32 +193,31 @@ def run_group_experiment(group_name, files, win, pre, n_clusters, base_config, p
                 server.recluster_clients(tmp_parts)
 
             client_parts_dict = {}
-            client_losses_dict = {}
+            client_losses = {}
 
-            # 1. 本地训练
+            # 本地训练
             for client in clients:
                 global_parts = server.get_global_model_parts(client.client_id)
                 client.set_global_model(copy.deepcopy(global_parts))
                 loss = client.local_train()
                 client_parts_dict[client.client_id] = client.get_local_parameters()
-                client_losses_dict[client.client_id] = loss
+                client_losses[client.client_id] = loss
 
-            # 2. 可视化
-            viz_rounds = [0, 5, 20, 49]
+            # 可视化 (首、中、尾)
+            viz_rounds = [0, 5, 20, config['federation']['num_rounds'] - 1]
             if comm_round in viz_rounds and client_parts_dict:
-                # 无论是否聚类，都基于设定的 cluster_on (both) 进行可视化
                 visualize_clustering(
                     server, client_parts_dict, comm_round, viz_dir, current_labels,
                     cluster_on=strat['cluster_on']
                 )
 
-            # 3. 聚合 & 重聚类
-            server.aggregate_parameters(client_parts_dict, client_losses_dict)
+            # 聚合 & 重聚类
+            server.aggregate_parameters(client_parts_dict, client_losses)
             if config['clustering']['enabled']:
                 server.recluster_clients(client_parts_dict)
 
             if (comm_round + 1) % 10 == 0:
-                print(f"     Round {comm_round + 1} Loss: {np.mean(list(client_losses_dict.values())):.4f}")
+                print(f"     Round {comm_round + 1} Loss: {np.mean(list(client_losses.values())):.4f}")
 
         # --- 评估 ---
         all_metrics = []
@@ -248,18 +227,27 @@ def run_group_experiment(group_name, files, win, pre, n_clusters, base_config, p
             mae, rmse = client.evaluate(save_dir=exp_dir)
             all_metrics.append({
                 'client_id': client.client_id,
-                'source': current_labels[client.client_id],
-                'cluster_id': server.client_clusters.get(client.client_id, 0),
-                'MAE': mae, 'RMSE': rmse
+                'MAE': mae, 'RMSE': rmse,
+                'Cluster': server.client_clusters.get(client.client_id, 0)
             })
 
         avg_mae = np.mean([m['MAE'] for m in all_metrics])
         avg_rmse = np.mean([m['RMSE'] for m in all_metrics])
 
-        results.append({'Group': group_name, 'Strategy': strat['name'], 'MAE': avg_mae, 'RMSE': avg_rmse})
+        results.append({
+            'Group': group_name,
+            'Strategy': strat['name'],
+            'MAE': avg_mae,
+            'RMSE': avg_rmse,
+            'Final_K': server.num_clusters
+        })
 
-        # 保存详细信息
-        pd.DataFrame(all_metrics).to_csv(os.path.join(exp_dir, 'details.csv'), index=False)
+        # 保存该策略的详细指标
+        pd.DataFrame(all_metrics).to_csv(os.path.join(exp_dir, 'client_metrics.csv'), index=False)
+
+        # 清理显存
+        del clients, server, client_dataloaders
+        torch.cuda.empty_cache()
 
     return results
 
@@ -267,20 +255,17 @@ def run_group_experiment(group_name, files, win, pre, n_clusters, base_config, p
 def main():
     base_config = load_config('config/config.yaml')
 
+    # 定义实验组
     experiment_groups = [
         {
-            'name': 'XJTU_Internal',
+            'name': 'XJTU_All',
             'files': ['data/batch-1.xlsx', 'data/batch-2.xlsx', 'data/batch-3.xlsx'],
-            'win': 50,
-            'pre': 200,
-            'n_clusters': 6
+            'win': 50, 'pre': 200, 'n_clusters': 6
         },
         {
-            'name': 'MIT_Internal',
+            'name': 'MIT_All',
             'files': ['data/batch-4.xlsx', 'data/batch-5.xlsx'],
-            'win': 100,
-            'pre': 500,
-            'n_clusters': 3
+            'win': 100, 'pre': 500, 'n_clusters': 3
         }
     ]
 
@@ -292,11 +277,8 @@ def main():
     all_results = []
     for group in experiment_groups:
         valid_files = [f for f in group['files'] if os.path.exists(f)]
-        if not valid_files:
-            print(f"Skipping {group['name']}, no files found.")
-            continue
+        if not valid_files: continue
 
-        # 传入 group['n_clusters']
         group_res = run_group_experiment(
             group['name'], valid_files, group['win'], group['pre'],
             group['n_clusters'], base_config, parent_dir
@@ -305,9 +287,9 @@ def main():
 
     if all_results:
         df = pd.DataFrame(all_results)
-        print("\n" + "=" * 60)
-        print("Experiment 3 Summary (KMeans vs DBSCAN vs GMM)")
-        print("=" * 60)
+        print("\n" + "=" * 80)
+        print("Experiment 3 Summary")
+        print("=" * 80)
         print(df.to_string(index=False))
         df.to_csv(os.path.join(parent_dir, 'exp_3_summary.csv'), index=False)
 

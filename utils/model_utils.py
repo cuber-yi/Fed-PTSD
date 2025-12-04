@@ -4,6 +4,10 @@ from src.model.LSTM import LSTM
 from src.model.GRU import GRU
 from src.model.MLP import MLP
 from src.model.DLinear import DLinear
+from src.model.Pyraformer import Pyraformer
+from src.model.FEDformer import FEDformer
+from src.model.TimesNet import TimesNet
+from src.model.PatchTST import PatchTST
 
 
 MODEL_REGISTRY = {
@@ -12,7 +16,11 @@ MODEL_REGISTRY = {
     'lstm': LSTM,
     'gru': GRU,
     'mlp': MLP,
-    'dlinear': DLinear
+    'dlinear': DLinear,
+    'pyraformer': Pyraformer,
+    'fedformer': FEDformer,
+    'timesnet': TimesNet,
+    'patchtst': PatchTST
 }
 
 

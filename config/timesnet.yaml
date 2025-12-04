@@ -1,0 +1,5 @@
+config:
+  d_model: 64
+  num_layers: 2
+  k: 3
+

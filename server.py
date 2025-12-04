@@ -97,14 +97,7 @@ class Server:
             return {'full_model': model_to_use.state_dict()}
 
     def aggregate_parameters(self, client_parts_dict: dict, client_losses_dict: dict):
-        """
-        聚合客户端参数。
-        逻辑分为两类：
-        1. 硬聚类 (K-Means, DBSCAN, 或无聚类): 按 cluster 分组，组内平均。
-        2. 软聚类 (GMM): 所有客户端参与所有簇的聚合，按权重加权。
-        """
-
-        # --- 情况 A: 未启用聚类 或 硬聚类 (client_weights 为 None) ---
+        # --- 未启用聚类或硬聚类 ---
         if not self.clustering_enabled or self.client_weights is None:
             cluster_groups = defaultdict(list)
             cluster_losses = defaultdict(list)
@@ -124,9 +117,7 @@ class Server:
                 self.update_global_model(aggregated_parts, cluster_id)
             return
 
-        # --- 情况 B: 软聚类 (client_weights 存在) ---
-        print(f"[Server] Performing Soft Aggregation ({self.clustering_method.upper()})")
-
+        # --- 软聚类 ---
         for cluster_k in range(self.num_clusters):
             weighted_sum_parts = defaultdict(lambda: defaultdict(float))
             total_weight_k = 0.0
@@ -182,19 +173,12 @@ class Server:
             return
 
         cluster_on = self.clustering_config.get('cluster_on', 'trend')
-
         # --- 调用策略执行聚类 ---
-        try:
-            new_assignments, num_clusters_found, weights = self.cluster_strategy.run(client_parts_dict, cluster_on)
-        except Exception as e:
-            print(f"[Server Error] Clustering failed: {e}")
-            return
-
+        new_assignments, num_clusters_found, weights = self.cluster_strategy.run(client_parts_dict, cluster_on)
         # 更新服务器状态
         self.client_clusters = new_assignments
         self.num_clusters = num_clusters_found
         self.client_weights = weights
-
         # 基于新聚类初始化模型中心
         self._initialize_cluster_models(client_parts_dict)
 
@@ -221,7 +205,7 @@ class Server:
 
             new_cluster_models[cluster_id] = new_model
 
-        # 填补空缺的 Cluster 模型 (如果有)
+        # 填补空缺的 Cluster 模型
         for k in range(self.num_clusters):
             if k not in new_cluster_models:
                 if k in self.cluster_models:
@@ -233,7 +217,6 @@ class Server:
 
     def get_aggregator_info(self):
         """获取聚合器信息"""
-        # 优先返回 Cluster 0 或第一个可用聚合器的信息
         target_agg = None
         if 0 in self.cluster_aggregators:
             target_agg = self.cluster_aggregators[0]

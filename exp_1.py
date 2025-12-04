@@ -15,7 +15,6 @@ from server import Server
 
 
 def set_seed(seed):
-    """重置随机种子，确保实验可复现"""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -31,13 +30,9 @@ def run_single_experiment(file_path, model_name, window_size, pre_len, base_conf
 
     # --- 1. 动态构建配置 ---
     config = copy.deepcopy(base_config)
-
-    # A. 设置模型名称
     config['model']['name'] = model_name
     config['model']['config'] = {}
 
-    # B. 加载特定模型的参数 (模拟 load_config 的行为)
-    # 假设模型配置文件在 config/ 目录下，例如 config/xpatch.yaml
     model_config_path = Path('config') / f"{model_name}.yaml"
     if model_config_path.exists():
         with open(model_config_path, 'r', encoding='utf-8') as f:
@@ -49,18 +44,18 @@ def run_single_experiment(file_path, model_name, window_size, pre_len, base_conf
     else:
         print(f"Warning: Config file for {model_name} not found at {model_config_path}")
 
-    # C. 关键控制变量设置
-    config['clustering']['enabled'] = False  # 强制关闭聚类
-    config['model']['pfl_enabled'] = False  # 强制关闭个性化层 (xPatch退化为FedAvg)
+
+    config['clustering']['enabled'] = False
+    config['model']['pfl_enabled'] = False
     config['privacy']['enabled'] = False
 
-    # D. 数据参数设置
-    config['data']['mode'] = 'single_file_multi_client'  # 单文件多客户端模式
+    # 数据参数设置
+    config['data']['mode'] = 'single_file_multi_client'
     config['data']['single_file'] = file_path
     config['data']['window_size'] = window_size
     config['data']['pre_len'] = pre_len
 
-    # E. 注入维度信息 (模型输入维度适配)
+    # 注入维度信息 (模型输入维度适配)
     config['model']['config']['enc_in'] = config['data']['enc_in']
     config['model']['config']['pred_len'] = config['data']['pre_len']
     config['model']['config']['seq_len'] = config['data']['window_size']
@@ -90,22 +85,14 @@ def run_single_experiment(file_path, model_name, window_size, pre_len, base_conf
 
     # --- 5. 加载数据 ---
     print(f"正在从 {file_path} 加载数据...")
-    try:
-        client_dataloaders = setup_clients_by_sheet(
-            file_path=file_path,
-            window_size=window_size,
-            pre_len=pre_len,
-            batch_size=config['federation']['batch_size'],
-            max_capacity=config['data']['max_capacity'],
-            generator=g
-        )
-    except Exception as e:
-        print(f"数据加载失败: {e}")
-        return None
-
-    if not client_dataloaders:
-        print(f"错误: 未能从 {file_path} 加载任何客户端。")
-        return None
+    client_dataloaders = setup_clients_by_sheet(
+        file_path=file_path,
+        window_size=window_size,
+        pre_len=pre_len,
+        batch_size=config['federation']['batch_size'],
+        max_capacity=config['data']['max_capacity'],
+        generator=g
+    )
 
     num_clients = len(client_dataloaders)
     print(f"成功加载 {num_clients} 个客户端。")
@@ -176,7 +163,18 @@ def main():
         {'path': 'data/batch-5.xlsx', 'win': 100, 'pre': 500},
     ]
 
-    models_to_test = ['xpatch', 'rnn', 'lstm', 'gru', 'mlp']
+    models_to_test = [
+        # 'xpatch',
+        'patchtst',
+        'timesnet',
+        'fedformer',
+        'pyraformer',
+        'dlinear',
+        # 'rnn',
+        # 'lstm',
+        # 'gru',
+        # 'mlp'
+    ]
 
     timestamp = datetime.datetime.now().strftime("%m%d-%H%M")
     base_save_dir = base_config['results']['save_dir_prefix']
