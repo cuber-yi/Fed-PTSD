@@ -2,4 +2,4 @@ config:
   d_model: 64
   n_heads: 4
   num_layers: 2
-  modes: 32
+  modes: 16

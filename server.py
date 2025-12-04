@@ -172,14 +172,11 @@ class Server:
         if not self.clustering_enabled:
             return
 
-        cluster_on = self.clustering_config.get('cluster_on', 'trend')
         # --- 调用策略执行聚类 ---
-        new_assignments, num_clusters_found, weights = self.cluster_strategy.run(client_parts_dict, cluster_on)
-        # 更新服务器状态
+        new_assignments, num_clusters_found, weights = self.cluster_strategy.run(client_parts_dict)
         self.client_clusters = new_assignments
         self.num_clusters = num_clusters_found
         self.client_weights = weights
-        # 基于新聚类初始化模型中心
         self._initialize_cluster_models(client_parts_dict)
 
     def _initialize_cluster_models(self, client_parts_dict):

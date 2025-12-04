@@ -5,7 +5,6 @@ import torch.nn as nn
 class DLinear(nn.Module):
     """
     DLinear: Decomposition Linear Model (AAAI 2023)
-    Paper: Are Transformers Effective for Time Series Forecasting?
     """
 
     def __init__(self, seq_len, pred_len, enc_in):
@@ -22,14 +21,6 @@ class DLinear(nn.Module):
         self.Linear_Seasonal = nn.Linear(self.seq_len, self.pred_len)
         self.Linear_Trend = nn.Linear(self.seq_len, self.pred_len)
 
-        # Individual channel handling is implicit if using Linear on last dim,
-        # but DLinear usually shares weights across channels or handles them independently.
-        # Here we implement the independent channel version (more robust).
-        self.Linear_Seasonal.weight = nn.Parameter(
-            (1 / self.seq_len) * torch.ones([self.pred_len, self.seq_len]))
-        self.Linear_Trend.weight = nn.Parameter(
-            (1 / self.seq_len) * torch.ones([self.pred_len, self.seq_len]))
-
     def forward(self, x):
         # x: [Batch, Seq_Len, Channel]
         seasonal_init, trend_init = self.decompsition(x)
@@ -42,7 +33,8 @@ class DLinear(nn.Module):
         trend_output = self.Linear_Trend(trend_init)
 
         x = seasonal_output + trend_output
-        return x.permute(0, 2, 1)  # Back to [Batch, Pred_Len, Channel]
+        x = x.permute(0, 2, 1)  # [Batch, Pred_Len, Channel]
+        return x[:, :, -1]
 
 
 class SeriesDecomp(nn.Module):

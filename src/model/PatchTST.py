@@ -23,7 +23,10 @@ class PatchTST(nn.Module):
 
         encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=n_heads, dim_feedforward=d_model * 4,
                                                    dropout=dropout, batch_first=True, norm_first=True)
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+
+        # [修改]: 添加 enable_nested_tensor=False 以消除警告
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers,
+                                                         enable_nested_tensor=False)
 
         # Head
         self.flatten = nn.Flatten(start_dim=-2)

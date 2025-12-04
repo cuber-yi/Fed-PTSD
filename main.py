@@ -68,7 +68,7 @@ def main():
             generator=g
         )
     elif data_mode == 'multi_file_all_sheets':
-        print("配置模式: 多文件 - 全Sheet独立客户端 (Multi-File Individual Sheets)")
+        print("多文件全Sheet独立客户端")
         # 确保这里使用的是 files 列表
         client_dataloaders = setup_clients_multi_file_by_sheet(
             file_paths=config['data']['files'],
@@ -80,7 +80,7 @@ def main():
         )
 
     num_total_clients = len(client_dataloaders)
-    print(f"总共创建客户端数量: {num_total_clients}")
+    print(f"创建客户端数量: {num_total_clients}")
 
     # 初始化Client和Server实例
     clients = [Client(client_id=i, dataloader=dl, config=config, device=device) for
@@ -93,7 +93,7 @@ def main():
     clustering_enabled = clustering_config.get('enabled', False)
     RECLUSTER_EVERY = clustering_config.get('recluster_every_n_rounds', 10)
     if clustering_enabled:
-        print(f"聚类联邦学习已启用. K={clustering_config.get('num_clusters')}, 每 {RECLUSTER_EVERY} 轮重新聚类.")
+        print(f"聚类联邦学习已启用, 每 {RECLUSTER_EVERY} 轮重新聚类.")
     last_round_client_parts = {}
 
     for comm_round in range(num_rounds):
@@ -103,8 +103,6 @@ def main():
         if clustering_enabled and (comm_round == 0 or comm_round % RECLUSTER_EVERY == 0):
             # 第0轮特殊处理：客户端需要先训练一次才能有参数
             if comm_round == 0:
-                print("[Round 0] 进行初始训练以用于首次聚类...")
-                # 让所有客户端使用 cluster 0 的模型训练一次
                 initial_parts = server.get_global_model_parts(client_id=0)
                 for client in clients:
                     client.set_global_model(copy.deepcopy(initial_parts))
@@ -121,7 +119,7 @@ def main():
         client_losses_dict = {}
         # --- 客户端本地训练 ---
         for client in clients:
-            # 【修改】客户端根据自己的ID获取对应的 cluster 模型
+            # 客户端根据自己的ID获取对应的 cluster 模型
             global_model_parts = server.get_global_model_parts(client.client_id)
             # 客户端加载拆分后的模型
             client.set_global_model(copy.deepcopy(global_model_parts))
@@ -133,7 +131,7 @@ def main():
             client_losses_dict[client.client_id] = train_loss
 
             cluster_id = server.client_clusters.get(client.client_id, 0)
-            print(f"  Client {client.client_id} (Cluster {cluster_id}) 训练完成, 损失: {train_loss:.4f}")
+            print(f"  客户端 {client.client_id} (簇 {cluster_id}) 训练完成, Loss: {train_loss:.4f}")
 
         last_round_client_parts = copy.deepcopy(client_parts_dict)
         # 服务器分别聚合所有部分（传递损失信息）
@@ -166,7 +164,6 @@ def main():
         print(f"Client {metrics['client_id']}: MAE = {metrics['MAE']:.4f}, RMSE = {metrics['RMSE']:.4f}")
     print(f"\n平均评估结果: MAE = {avg_mae:.4f}, RMSE = {avg_rmse:.4f}")
 
-    # --- 保存摘要 ---
     avg_metrics = {'MAE': avg_mae, 'RMSE': avg_rmse}
     save_summary_report(save_dir=save_dir, all_metrics=all_metrics, avg_metrics=avg_metrics)
 

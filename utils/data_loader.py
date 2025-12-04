@@ -121,7 +121,7 @@ def setup_clients_by_file(file_paths, window_size, pre_len, batch_size, max_capa
         try:
             xls = pd.ExcelFile(file_path)
             sheet_names = xls.sheet_names
-            print(f"加载客户端 {client_id_counter} . Found sheets: {sheet_names}")
+            print(f"加载客户端 {client_id_counter}")
             all_battery_data = load_battery_data(file_path)
             all_datasets_for_client = []
             for sheet_name in sheet_names:
@@ -135,14 +135,13 @@ def setup_clients_by_file(file_paths, window_size, pre_len, batch_size, max_capa
                 y_tensor = torch.FloatTensor(y_windowed)
                 dataset = TensorDataset(X_tensor, y_tensor)
                 all_datasets_for_client.append(dataset)
-                print(f"  - Loaded {len(dataset)} samples from sheet: {sheet_name}.")
             if all_datasets_for_client:
                 combined_client_dataset = ConcatDataset(all_datasets_for_client)
                 dataloader = DataLoader(combined_client_dataset, batch_size=batch_size, shuffle=True,
                                         worker_init_fn=seed_worker, generator=generator)
                 client_dataloaders.append(dataloader)
                 print(
-                    f"--> Created DataLoader for Client {client_id_counter} with a total of {len(combined_client_dataset)} samples.")
+                    f"--> Created DataLoader for Client {client_id_counter} with {len(combined_client_dataset)} samples.")
                 client_id_counter += 1
             else:
                 print(f"--> Warning: No data loaded for Client from file {file_path}. This client will not be created.")
@@ -191,7 +190,6 @@ def setup_clients_multi_file_by_sheet(file_paths, window_size, pre_len, batch_si
     global_client_id = 0
 
     for file_path in file_paths:
-        print(f"正在处理文件以分配客户端: {file_path}")
         try:
             # 获取该文件下所有sheet名称
             xls = pd.ExcelFile(file_path)
@@ -219,7 +217,7 @@ def setup_clients_multi_file_by_sheet(file_paths, window_size, pre_len, batch_si
                 client_dataloaders.append(dataloader)
 
                 print(
-                    f"--> 创建客户端 {global_client_id}: 来自 {file_path} 的 Sheet '{sheet_name}' ({len(dataset)} 样本)")
+                    f"--> 创建客户端 {global_client_id}: {len(dataset)} 样本")
                 global_client_id += 1
 
         except Exception as e:

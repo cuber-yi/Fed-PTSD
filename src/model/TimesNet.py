@@ -29,10 +29,9 @@ class TimesNet(nn.Module):
         x = x.permute(0, 2, 1)  # [B, Pred, d_model]
         x = self.projection(x)  # [B, Pred, Channel]
 
-        # 如果是单变量预测，且 exp_1 需要 [B, Pred]
+        # SOH 预测聚合
         if x.shape[2] == 1:
             return x.squeeze(-1)
-        # 简单聚合用于SOH
         return x.mean(dim=2)
 
 
@@ -69,9 +68,11 @@ class TimesBlock(nn.Module):
                 out = x
 
             # Reshape to 2D
-            out = out.reshape(B, D, length // period, period).permute(0, 3, 2, 1).contiguous()
+            # [修正]: 移除 permute，保持 (B, D, H, W) 格式以适配 Conv2d
+            out = out.reshape(B, D, length // period, period).contiguous()
             out = self.conv(out)
-            out = out.permute(0, 3, 2, 1).reshape(B, D, -1)
+            out = out.reshape(B, D, -1)
+
             x = x + out[..., :S]  # Residual
 
         return x

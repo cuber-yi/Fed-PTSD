@@ -10,37 +10,31 @@ training:
   optimizer: 'adam'
 
 model:
-  name: 'xpatch'    #'xpatch', 'rnn', 'lstm', 'gru', 'mlp'
+  name: 'dlinear'    #'xpatch', 'rnn', 'lstm', 'gru', 'mlp', 'dlinear', 'pyraformer',
+                      #'fedformer', 'timesnet', 'patchtst'
   pfl_enabled: true
 
 results:
   save_dir_prefix: 'result/'
 
 privacy:
-  enabled: true     # 是否启用差分隐私
-  clipping_norm: 1.5      # DP所必需的梯度裁剪 L2 范数
-
+  enabled: true
+  clipping_norm: 1.5
   noise_sigma:
     seasonal: 0.001
     trend: 0.005
 
 aggregation:
   name: 'fedavg'  # 'fedavg', 'fedprox'
-  mu: 0.01               # FedProx专用，近端项系数
+  mu: 0.01
 
 clustering:
-  enabled: true
-  method: 'spectral'  # 可选: 'kmeans', 'gmm', 'spectral'
-
-  # K-Means & GMM 通用参数
+  enabled: false
+  method: 'kmeans'  # 可选: 'kmeans', 'gmm', 'spectral'
   num_clusters: 6
-  # DBSCAN 专用参数
   eps: 0.5
   min_samples: 2
-
   recluster_every_n_rounds: 10
-  cluster_on: 'both'  # ('trend', 'seasonal', 或 'both')
-
   affinity: 'nearest_neighbors'
   n_neighbors: 5
 
@@ -60,24 +54,24 @@ clustering:
 #  enc_in: 6
 #  device: 'cuda'
 
-#data:
-# mode: 'single_file_multi_client'  # 使用单文件多客户端模式
-# single_file: 'data/batch-1.xlsx'  # 指定单个数据文件
-# window_size: 50
-# pre_len: 200
-# max_capacity: 2.0
-# enc_in: 6
-# device: 'cuda'
-
 data:
-  mode: 'multi_file_all_sheets'
-  files:
-    - 'data/batch-1.xlsx'
-    - 'data/batch-2.xlsx'
-    - 'data/batch-3.xlsx'
-  window_size: 50
-  pre_len: 200
-  max_capacity: 2.0
-  enc_in: 6
-  device: 'cuda'
+ mode: 'single_file_multi_client'
+ single_file: 'data/batch-1.xlsx'
+ window_size: 50
+ pre_len: 200
+ max_capacity: 2.0
+ enc_in: 6
+ device: 'cuda'
+
+#data:
+#  mode: 'multi_file_all_sheets'
+#  files:
+#    - 'data/batch-1.xlsx'
+#    - 'data/batch-2.xlsx'
+#    - 'data/batch-3.xlsx'
+#  window_size: 50
+#  pre_len: 200
+#  max_capacity: 2.0
+#  enc_in: 6
+#  device: 'cuda'
 

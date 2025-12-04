@@ -2,4 +2,4 @@ config:
   d_model: 64
   n_heads: 4
   num_layers: 2
-  window_size: [2, 2] # 控制金字塔层级
+  window_size: [2, 2]
