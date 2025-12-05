@@ -20,8 +20,6 @@ def load_config(path='config/config.yaml'):
             # 合并配置: 将模型配置合并到主配置的 'model' 键下
             if model_config:
                 config['model'].update(model_config)
-        else:
-            print(f"[Config] 提示: 未找到 {model_name}.yaml，将使用默认或代码注入的参数。")
 
     # 确保 config['model']['config'] 存在，以便后续注入参数
     if 'config' not in config['model'] or config['model']['config'] is None:
