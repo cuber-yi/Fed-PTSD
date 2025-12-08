@@ -6,6 +6,9 @@ from src.aggregation.fed_avg import FedAvg
 from src.aggregation.fed_prox import FedProx
 from src.aggregation.fed_avgm import FedAvgM
 from src.aggregation.fed_adam import FedAdam
+from src.aggregation.fed_adagrad import FedAdagrad
+from src.aggregation.fed_yogi import FedYogi
+from src.aggregation.fed_median import FedMedian
 from src.cluster import get_clustering_strategy
 
 
@@ -57,12 +60,10 @@ class Server:
             'fedprox': FedProx,
             'fedavgm': FedAvgM,
             'fedadam': FedAdam,
+            'fedadagrad': FedAdagrad,
+            'fedyogi': FedYogi,
+            'fedmedian': FedMedian,
         }
-
-        if name not in aggregators:
-            print(f"[Warning] 未知聚合策略 '{name}', 使用默认 FedAvg")
-            return FedAvg
-
         return aggregators[name]
 
     def _get_cluster_aggregator(self, cluster_id: int):
