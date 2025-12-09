@@ -97,6 +97,8 @@ class Client:
         lr = self.config['training']['lr']
         optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
         criterion = nn.MSELoss()
+        privacy_config = self.config.get('privacy', {})
+        max_norm = privacy_config.get('clipping_norm', 5.0)
 
         epoch_losses = []
         for epoch in range(local_epochs):
@@ -107,15 +109,13 @@ class Client:
                 outputs = self.model(x_batch)
                 loss = criterion(outputs, y_batch.squeeze(-1))
                 loss.backward()
-                if self.dp_enabled:
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.dp_clipping_norm)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=max_norm)
                 optimizer.step()
                 batch_losses.append(loss.item())
 
             epoch_loss = np.mean(batch_losses)
             epoch_losses.append(epoch_loss)
 
-            # 记录最后一个epoch的平均损失
         self.last_train_loss = epoch_losses[-1]
         return self.last_train_loss
 

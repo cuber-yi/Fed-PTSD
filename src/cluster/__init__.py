@@ -1,12 +1,14 @@
 from .kmeans import KMeansClustering
 from .gmm import GMMClustering
 from .spectral import SpectralClusteringStrategy
+from .agglomerative import AgglomerativeClusteringStrategy
 
 # 注册表
 CLUSTERING_STRATEGIES = {
     'kmeans': KMeansClustering,
     'gmm': GMMClustering,
     'spectral': SpectralClusteringStrategy,
+    'agglomerative': AgglomerativeClusteringStrategy
 }
 
 

@@ -18,16 +18,24 @@ class SpectralClusteringStrategy:
             print(f"[Cluster] 警告: 客户端数量 ({num_clients}) 少于簇数量 ({self.num_clusters})，回退到单簇。")
             return {cid: 0 for cid in client_ids}, 1, None
 
+
         effective_n_neighbors = self.n_neighbors
-        if self.affinity == 'nearest_neighbors' and self.n_neighbors >= num_clients:
-            effective_n_neighbors = max(1, num_clients - 1)
-            print(f"[Cluster] 调整 n_neighbors 为 {effective_n_neighbors}")
+
+        if self.affinity == 'nearest_neighbors':
+            recommended_neighbors = max(int(num_clients * 0.6), 2)
+
+            if effective_n_neighbors < recommended_neighbors:
+                effective_n_neighbors = recommended_neighbors
+                effective_n_neighbors = min(effective_n_neighbors, num_clients - 1)
+
+            if effective_n_neighbors >= num_clients:
+                effective_n_neighbors = max(1, num_clients - 1)
 
         spectral = SpectralClustering(
             n_clusters=self.num_clusters,
             eigen_solver=None,
             random_state=self.seed,
-            n_init=10,
+            n_init=20,
             gamma=self.gamma,
             affinity=self.affinity,
             n_neighbors=effective_n_neighbors,
