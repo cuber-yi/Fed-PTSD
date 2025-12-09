@@ -92,6 +92,7 @@ def main():
     clustering_config = config.get('clustering', {})
     clustering_enabled = clustering_config.get('enabled', False)
     RECLUSTER_EVERY = clustering_config.get('recluster_every_n_rounds', 10)
+    WARMUP_ROUNDS = clustering_config.get('warmup_rounds', 10)
     if clustering_enabled:
         print(f"聚类联邦学习已启用, 每 {RECLUSTER_EVERY} 轮重新聚类.")
     last_round_client_parts = {}
@@ -99,21 +100,17 @@ def main():
     for comm_round in range(num_rounds):
         print(f"\n{'=' * 20} 通信轮次： {comm_round + 1}/{num_rounds} {'=' * 20}")
 
-        # --- 触发重新聚类 ---
-        if clustering_enabled and (comm_round == 0 or comm_round % RECLUSTER_EVERY == 0):
-            # 第0轮特殊处理：客户端需要先训练一次才能有参数
-            if comm_round == 0:
-                initial_parts = server.get_global_model_parts(client_id=0)
-                for client in clients:
-                    client.set_global_model(copy.deepcopy(initial_parts))
-                    client.local_train()  # 只训练，不聚合
-                    last_round_client_parts[client.client_id] = client.get_local_parameters()
+        if clustering_enabled and comm_round >= WARMUP_ROUNDS and (comm_round - WARMUP_ROUNDS) % RECLUSTER_EVERY == 0:
+            print(f"  [Cluster] 触发聚类操作 (Round {comm_round + 1})...")
 
-            # 使用上一轮的参数执行聚类
             if last_round_client_parts:
                 server.recluster_clients(last_round_client_parts)
+                print(f"  [Cluster] 聚类完成. 当前分组: {server.client_clusters}")
             else:
-                print("[Server Warning] 没有客户端参数可用于聚类.")
+                print("[Server Warning] 没有客户端参数可用于聚类 (可能是首轮), 跳过本次聚类.")
+
+        elif clustering_enabled and comm_round < WARMUP_ROUNDS:
+            print(f"  [Cluster] 预热阶段 (Round {comm_round + 1}/{WARMUP_ROUNDS})")
 
         client_parts_dict = {}
         client_losses_dict = {}
