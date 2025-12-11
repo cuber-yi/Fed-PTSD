@@ -135,7 +135,7 @@ def run_single_experiment(file_path, model_name, window_size, pre_len, base_conf
             client_losses_dict[client.client_id] = loss
 
         # 4. Server 聚合
-        server.aggregate_parameters(client_parts_dict, client_losses_dict)
+        # server.aggregate_parameters(client_parts_dict, client_losses_dict)
 
         # 进度打印
         if (comm_round + 1) % 5 == 0 or comm_round == 0:
@@ -180,15 +180,15 @@ def main():
     # 2. 待测试模型列表
     models_to_test = [
         'xpatch',
-        'patchtst',
-        'timesnet',
-        'fedformer',
-        'pyraformer',
-        'dlinear',
-        'rnn',
-        'lstm',
-        'gru',
-        'mlp'
+        # 'patchtst',
+        # 'timesnet',
+        # 'fedformer',
+        # 'pyraformer',
+        # 'dlinear',
+        # 'rnn',
+        # 'lstm',
+        # 'gru',
+        # 'mlp'
     ]
 
     # --- 准备总目录 ---
