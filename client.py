@@ -45,6 +45,10 @@ def _classify_xpatch_param(key: str) -> str:
     return 'common'
 
 
+def is_bn_layer(name):
+    return 'bn' in name or 'running_mean' in name or 'running_var' in name
+
+
 class Client:
     def __init__(self, client_id: int, dataloader: DataLoader, config: dict, device: torch.device):
         self.client_id = client_id
@@ -210,3 +214,78 @@ class Client:
         )
 
         return mae, rmse
+
+    def local_train_fedrep(self, head_epochs=5):
+        """
+        FedRep
+        """
+        self.model.train()
+        criterion = torch.nn.MSELoss()
+        # 根据 xPatch 结构，Head 通常是个性化部分 (fc8, revin等)，Body 是共享部分
+        # 使用你现有的 _classify_xpatch_param 逻辑
+        head_params = []
+        body_params = []
+        for name, param in self.model.named_parameters():
+            if _classify_xpatch_param(name) == 'personal':
+                head_params.append(param)
+            else:
+                body_params.append(param)
+
+        for param in body_params: param.requires_grad = False
+        for param in head_params: param.requires_grad = True
+        opt_head = torch.optim.Adam(head_params, lr=self.config['training']['lr'])
+
+        for _ in range(head_epochs):
+            for x, y in self.dataloader:
+                x, y = x.to(self.device), y.to(self.device)
+                opt_head.zero_grad()
+                loss = criterion(self.model(x), y.squeeze(-1))
+                loss.backward()
+                opt_head.step()
+
+        for param in body_params: param.requires_grad = True
+        for param in head_params: param.requires_grad = False
+        opt_body = torch.optim.Adam(body_params, lr=self.config['training']['lr'])
+
+        epoch_losses = []
+        for _ in range(self.config['federation']['local_epochs']):
+            batch_losses = []
+            for x, y in self.dataloader:
+                x, y = x.to(self.device), y.to(self.device)
+                opt_body.zero_grad()
+                output = self.model(x)
+                loss = criterion(output, y.squeeze(-1))
+                loss.backward()
+                opt_body.step()
+                batch_losses.append(loss.item())
+            epoch_losses.append(np.mean(batch_losses))
+
+        for param in self.model.parameters(): param.requires_grad = True
+        self.last_train_loss = epoch_losses[-1]
+        return self.last_train_loss
+
+    def get_parameters_by_strategy(self, strategy):
+        """
+        根据不同策略返回不同的参数字典
+        """
+        local_state = self.model.state_dict()
+
+        if strategy == 'fedbn':
+            # FedBN: 上传除 BN 之外的所有参数
+            to_share = OrderedDict()
+            for k, v in local_state.items():
+                if not is_bn_layer(k):
+                    to_share[k] = v.clone()
+            return {'full_model_no_bn': to_share}
+
+        elif strategy == 'fedrep':
+            # FedRep: 只上传 Body (Seasonal + Trend)
+            parts = {'seasonal': OrderedDict(), 'trend': OrderedDict()}
+            for name, param in self.model.named_parameters():
+                if _classify_xpatch_param(name) != 'personal':
+                    part_name = _classify_xpatch_param(name)
+                    parts[part_name][name] = param.data.clone()
+            return parts
+
+        else:
+            return self.get_local_parameters()
