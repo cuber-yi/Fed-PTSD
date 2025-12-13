@@ -1,99 +1,83 @@
 import os
 import torch
 import numpy as np
-import random
 import copy
+import pandas as pd
 import datetime
 import yaml
-import pandas as pd
+import time
 from pathlib import Path
 from utils.config_utils import load_config
-from utils.data_loader import setup_clients_multi_file_by_sheet
+from utils.data_loader import setup_clients_by_sheet
 from utils.reporting_utils import save_summary_report
 from client import Client
 from server import Server
 
 
 def set_seed(seed):
+    import random
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
 
 
-def run_extended_clustering_experiment(dataset_group_name, files, cluster_config, model_name, window_size, pre_len,
-                                       base_config, parent_dir):
-    """
-    运行扩展聚类实验：支持多文件全Sheet模式，支持更多聚类算法
-    """
+def calculate_comm_size_mb(params_dict):
+    """计算参数字典中所有张量的总大小 (MB)"""
+    total_elements = 0
+    for part_name, params in params_dict.items():
+        for key, tensor in params.items():
+            total_elements += tensor.numel()
+    # 假设 float32 (4 bytes)
+    size_in_mb = total_elements * 4 / (1024 * 1024)
+    return size_in_mb
+
+
+def run_single_pfl_experiment(file_path, strategy_name, window_size, pre_len, base_config, parent_dir):
     config = copy.deepcopy(base_config)
 
-    # --- 1. 固定最佳聚合策略 ---
-    config['model']['name'] = model_name
-    config['model']['pfl_enabled'] = True  # 始终开启 PFL
+    config['model']['name'] = 'xpatch'
+    config['model']['pfl_enabled'] = True
     config['aggregation'] = {'name': 'fedavgm', 'beta': 0.9, 'server_lr': 1.0}
-    # 禁用隐私以控制变量
     config['privacy']['enabled'] = False
+    config['clustering']['enabled'] = False
 
-    # --- 2. 注入聚类配置 ---
-    if cluster_config['method'] is None:
-        config['clustering']['enabled'] = False
-        cluster_name = "No_Clustering"
-    else:
-        config['clustering']['enabled'] = True
-        config['clustering'].update(cluster_config)
-        cluster_name = f"{cluster_config['method']}_K{cluster_config['num_clusters']}"
-
-    # --- 3. 配置数据模式为 Multi-File All-Sheets ---
-    config['data']['mode'] = 'multi_file_all_sheets'
-    config['data']['files'] = files
     config['data']['window_size'] = window_size
     config['data']['pre_len'] = pre_len
-
-    # 模型维度注入
     if 'config' not in config['model']: config['model']['config'] = {}
     config['model']['config']['enc_in'] = config['data']['enc_in']
     config['model']['config']['pred_len'] = config['data']['pre_len']
     config['model']['config']['seq_len'] = config['data']['window_size']
 
-    # 加载模型yaml
-    model_config_path = Path('config') / f"{model_name}.yaml"
+    model_config_path = Path('config') / "xpatch.yaml"
     if model_config_path.exists():
         with open(model_config_path, 'r', encoding='utf-8') as f:
             cfg = yaml.safe_load(f)
-            if cfg:
-                if 'config' in cfg:
-                    config['model']['config'].update(cfg['config'])
-                else:
-                    config['model']['config'].update(cfg)
+            if cfg and 'config' in cfg:
+                config['model']['config'].update(cfg['config'])
 
     device = torch.device(config['data']['device'])
+    file_name = os.path.basename(file_path)
 
-    # --- 4. 实验准备 ---
-    exp_sub_name = f"{dataset_group_name}_{cluster_name}"
-
-    print(f"\n{'=' * 80}")
-    print(f" >>> 执行扩展聚类实验: {dataset_group_name} | {cluster_name}")
-    print(f" >>> 文件列表: {files}")
-    print(f" >>> 窗口设置: Win={window_size}, Pred={pre_len}")
-    print(f"{'=' * 80}")
-
+    exp_sub_name = f"{file_name}_{strategy_name}"
     exp_dir = os.path.join(parent_dir, exp_sub_name)
     os.makedirs(os.path.join(exp_dir, 'results'), exist_ok=True)
+    os.makedirs(os.path.join(exp_dir, 'plots'), exist_ok=True)
     os.makedirs(os.path.join(exp_dir, 'models'), exist_ok=True)
 
-    # --- 5. 初始化 ---
+    print(f"\n{'=' * 80}")
+    print(f" >>> 执行 pFL 实验: Dataset=[{file_name}] | Strategy=[{strategy_name.upper()}]")
+    print(f"{'=' * 80}")
+
     set_seed(config.get('seed', 42))
     g = torch.Generator()
     g.manual_seed(config.get('seed', 42))
 
-    print("正在加载所有文件的所有Sheet作为独立客户端...")
-    client_dataloaders = setup_clients_multi_file_by_sheet(
-        file_paths=files,
+    # (单文件模式)
+    client_dataloaders = setup_clients_by_sheet(
+        file_path=file_path,
         window_size=window_size,
         pre_len=pre_len,
         batch_size=config['federation']['batch_size'],
@@ -102,168 +86,165 @@ def run_extended_clustering_experiment(dataset_group_name, files, cluster_config
     )
 
     if not client_dataloaders:
-        print("Error: 未能加载任何客户端数据。")
+        print(f"Error: {file_name} 未能加载数据。")
         return None
 
     num_clients = len(client_dataloaders)
-    print(f"成功创建 {num_clients} 个客户端。")
+    clients = [Client(i, dl, config, device) for i, dl in enumerate(client_dataloaders)]
+    server = Server(config, num_clients, device)
 
-    clients = [Client(client_id=i, dataloader=dl, config=config, device=device)
-               for i, dl in enumerate(client_dataloaders)]
-    server = Server(config=config, num_total_clients=num_clients, device=device)
-
-    # --- 6. 训练循环 (带聚类逻辑) ---
     num_rounds = config['federation']['num_rounds']
-    RECLUSTER_INTERVAL = 5
-
-    last_round_client_parts = {}
+    metrics_history = {'train_time': [], 'comm_size': [] }
 
     for comm_round in range(num_rounds):
-        # 触发聚类
-        if config['clustering']['enabled'] and (comm_round == 0 or comm_round % RECLUSTER_INTERVAL == 0):
-            if comm_round == 0:
-                # 第0轮预训练
-                print("  [Cluster] Round 0: Pre-training for clustering initialization...")
-                init_parts = server.get_global_model_parts(0)
-                temp_parts = {}
-                for c in clients:
-                    c.set_global_model(copy.deepcopy(init_parts))
-                    c.local_train()
-                    temp_parts[c.client_id] = c.get_local_parameters()
-                server.recluster_clients(temp_parts)
-                print(f"  [Cluster] Groups: {server.client_clusters}")
-            elif last_round_client_parts:
-                server.recluster_clients(last_round_client_parts)
-                print(f"  [Cluster] Re-clustered at Round {comm_round}. Groups: {server.client_clusters}")
-
         client_parts_dict = {}
-        client_losses_dict = {}
+        client_losses = {}
+        round_client_times = []
+        round_client_sizes = []
 
         for client in clients:
             global_parts = server.get_global_model_parts(client.client_id)
-            client.set_global_model(copy.deepcopy(global_parts))
 
-            loss = client.local_train()
-            local_parts = client.get_local_parameters()
+            if strategy_name == 'fedbn':
+                if 'full_model_no_bn' in global_parts:
+                    current_dict = client.model.state_dict()
+                    current_dict.update(global_parts['full_model_no_bn'])
+                    client.model.load_state_dict(current_dict)
+                elif 'full_model' in global_parts:  # 首轮
+                    # 过滤掉 BN
+                    to_load = {k: v for k, v in global_parts['full_model'].items()
+                               if 'bn' not in k and 'running' not in k}
+                    client.model.load_state_dict(to_load, strict=False)
+            else:
+                # xPatch_pFL 和 FedRep 都使用部分参数加载逻辑 (set_global_model 内部处理)
+                client.set_global_model(copy.deepcopy(global_parts))
+
+            start_time = time.time()
+
+            if strategy_name == 'fedrep':
+                # FedRep: 先训 Head 再训 Body
+                loss = client.local_train_fedrep(head_epochs=5)
+            else:
+                # FedBN 和 xPatch 使用标准训练
+                loss = client.local_train()
+
+            end_time = time.time()
+            round_client_times.append(end_time - start_time)
+
+            local_parts = client.get_parameters_by_strategy(strategy_name)
+
+            comm_size = calculate_comm_size_mb(local_parts)
+            round_client_sizes.append(comm_size)
 
             client_parts_dict[client.client_id] = local_parts
-            client_losses_dict[client.client_id] = loss
+            client_losses[client.client_id] = loss
 
-        last_round_client_parts = copy.deepcopy(client_parts_dict)
-        server.aggregate_parameters(client_parts_dict, client_losses_dict)
+        avg_time = np.mean(round_client_times)
+        avg_size = np.mean(round_client_sizes)
+        metrics_history['train_time'].append(avg_time)
+        metrics_history['comm_size'].append(avg_size)
+
+        server.aggregate_parameters(client_parts_dict, client_losses)
 
         if (comm_round + 1) % 10 == 0:
-            print(f"  Round {comm_round + 1}/{num_rounds} - Avg Loss: {np.mean(list(client_losses_dict.values())):.4f}")
+            avg_loss = np.mean(list(client_losses.values()))
+            print(f"  Round {comm_round + 1}/{num_rounds} - Avg Loss: {avg_loss:.4f} | "
+                  f"Time: {avg_time:.2f}s | Size: {avg_size:.2f}MB")
 
-    # --- 7. 最终评估 ---
-    print("正在评估...")
+    print(f"正在评估 {strategy_name} ...")
     all_metrics = []
-
     for client in clients:
-        final_parts = server.get_global_model_parts(client.client_id)
-        client.set_global_model(copy.deepcopy(final_parts))
-        mae, rmse = client.evaluate(save_dir=exp_dir)
+        # 获取最终全局参数
+        global_parts = server.get_global_model_parts(client.client_id)
 
-        cluster_id = server.client_clusters.get(client.client_id, 0)
-        all_metrics.append({
-            'client_id': client.client_id,
-            'cluster_id': cluster_id,
-            'MAE': mae,
-            'RMSE': rmse
-        })
+        # 加载参数用于评估
+        if strategy_name != 'fedbn':
+            # FedBN 保留本地最优 BN，不需要覆盖；其他策略需要加载最新的全局 Body
+            client.set_global_model(copy.deepcopy(global_parts))
+
+        mae, rmse = client.evaluate(save_dir=exp_dir)
+        all_metrics.append({'client_id': client.client_id, 'MAE': mae, 'RMSE': rmse})
 
     avg_mae = np.mean([m['MAE'] for m in all_metrics])
     avg_rmse = np.mean([m['RMSE'] for m in all_metrics])
 
+    final_avg_time = np.mean(metrics_history['train_time'])
+    final_avg_size = np.mean(metrics_history['comm_size'])
+
     save_summary_report(exp_dir, all_metrics, {'MAE': avg_mae, 'RMSE': avg_rmse})
-    print(f"实验完成: {dataset_group_name} - {cluster_name} -> MAE={avg_mae:.4f}")
+    print(f"实验完成: {file_name} | {strategy_name} -> MAE={avg_mae:.4f}")
+    print(f"  > 平均训练耗时: {final_avg_time:.4f} s/round")
+    print(f"  > 平均通信大小: {final_avg_size:.4f} MB/round")
 
     return {
-        'Dataset_Group': dataset_group_name,
-        'Cluster_Method': cluster_name,
-        'Num_Clients': num_clients,
+        'Dataset': file_name,
+        'Strategy': strategy_name,
         'MAE': avg_mae,
-        'RMSE': avg_rmse
+        'RMSE': avg_rmse,
+        'Avg_Time_Sec': final_avg_time,
+        'Comm_Size_MB': final_avg_size
     }
 
 
 def main():
     base_config = load_config('config/config.yaml')
 
-    # --- 1. 定义数据集分组计划 ---
-    xjtu_plan = {
-        'name': 'XJTU_Group',
-        'files': ['data/batch-1.xlsx', 'data/batch-2.xlsx', 'data/batch-3.xlsx'],
-        'win': 50,
-        'pre': 200
-    }
-    mit_plan = {
-        'name': 'MIT_Group',
-        'files': ['data/batch-4.xlsx', 'data/batch-5.xlsx'],
-        'win': 100,
-        'pre': 500
-    }
-
-    # 将需要运行的组放入列表
-    experiment_plans = [xjtu_plan, mit_plan]
-
-    # --- 2. 定义聚类策略列表 ---
-    cluster_strategies = [
-        # 1. 基准：无聚类
-        {'method': None, 'num_clusters': 1},
-
-        # 2. K-Means
-        {'method': 'kmeans', 'num_clusters': 3},
-        {'method': 'kmeans', 'num_clusters': 5},
-
-        # 3. GMM (软聚类)
-        {'method': 'gmm', 'num_clusters': 3},
-
-        # 4. Spectral (谱聚类)
-        {'method': 'spectral', 'num_clusters': 3},
-        {'method': 'spectral', 'num_clusters': 5},
+    files_plan = [
+        {'path': 'data/batch-1.xlsx', 'win': 50, 'pre': 200},
+        {'path': 'data/batch-2.xlsx', 'win': 50, 'pre': 200},
+        {'path': 'data/batch-3.xlsx', 'win': 50, 'pre': 200},
+        {'path': 'data/batch-4.xlsx', 'win': 100, 'pre': 500},
+        {'path': 'data/batch-5.xlsx', 'win': 100, 'pre': 500},
     ]
 
-    target_model = 'xpatch'
+    strategies = [
+        'xpatch_pfl',  # 本文提出的方法 (Trend/Seasonal 分离)
+        'fedrep',  # 基线: FedRep (共享 Body，本地 Head)
+        'fedbn'  # 基线: FedBN (不上传 BN 层)
+    ]
 
     timestamp = datetime.datetime.now().strftime("%m%d-%H%M")
-    parent_dir = os.path.join(base_config['results']['save_dir_prefix'], f"exp_3_{timestamp}")
+    base_save_dir = base_config['results']['save_dir_prefix']
+    parent_dir = os.path.join(base_save_dir, f"exp_3_{timestamp}")
     os.makedirs(parent_dir, exist_ok=True)
+
+    print(f"开始 pFL 对比实验，结果保存在: {parent_dir}")
 
     summary_results = []
 
-    print(f"开始执行扩展聚类实验，结果保存在: {parent_dir}")
-
-    for plan in experiment_plans:
-        # 检查文件是否存在
-        valid_files = [f for f in plan['files'] if os.path.exists(f)]
-        if not valid_files:
-            print(f"跳过组 {plan['name']}: 找不到任何文件。")
+    for plan in files_plan:
+        file_path = plan['path']
+        if not os.path.exists(file_path):
+            print(f"跳过: 文件 {file_path} 不存在")
             continue
 
-        for clus_conf in cluster_strategies:
+        for strategy in strategies:
             try:
-                res = run_extended_clustering_experiment(
-                    dataset_group_name=plan['name'],
-                    files=valid_files,
-                    cluster_config=clus_conf,
-                    model_name=target_model,
+                result = run_single_pfl_experiment(
+                    file_path=file_path,
+                    strategy_name=strategy,
                     window_size=plan['win'],
                     pre_len=plan['pre'],
                     base_config=base_config,
                     parent_dir=parent_dir
                 )
-                if res: summary_results.append(res)
+                if result:
+                    summary_results.append(result)
             except Exception as e:
-                print(f"Error in {plan['name']} - {clus_conf['method']}: {e}")
+                print(f"实验出错 ({file_path} - {strategy}): {e}")
                 import traceback
                 traceback.print_exc()
 
     if summary_results:
         df = pd.DataFrame(summary_results)
-        print("\n=== 扩展聚类实验结果汇总 ===")
+        print("\n" + "#" * 60)
+        print("pFL 算法对比汇总报告")
+        print("#" * 60)
         print(df.to_string(index=False))
-        df.to_csv(os.path.join(parent_dir, 'cluster_extended_summary.csv'), index=False)
+
+        csv_path = os.path.join(parent_dir, 'pfl_comparison_summary.csv')
+        df.to_csv(csv_path, index=False)
+        print(f"汇总表格已保存至: {csv_path}")
 
 
 if __name__ == '__main__':

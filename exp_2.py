@@ -177,20 +177,18 @@ def main():
     # 读取基础配置
     base_config = load_config('config/config.yaml')
 
-    # --- 1. 数据集计划 ---
     files_plan = [
-        {'path': 'data/batch-1.xlsx', 'win': 50, 'pre': 200},
+        # {'path': 'data/batch-1.xlsx', 'win': 50, 'pre': 200},
         {'path': 'data/batch-2.xlsx', 'win': 50, 'pre': 200},
         {'path': 'data/batch-3.xlsx', 'win': 50, 'pre': 200},
         {'path': 'data/batch-4.xlsx', 'win': 100, 'pre': 500},
         {'path': 'data/batch-5.xlsx', 'win': 100, 'pre': 500},
     ]
 
-    # --- 2. 联邦算法对比计划 ---
     agg_strategies = [
-        { 'name': 'fedavg', 'pfl_enabled': True, 'display_name': 'xPatch_PFL_FedAvg'},
+        { 'name': 'fedavg', 'pfl_enabled': True, 'display_name': 'PFL_FedAvg'},
         # 普通联邦聚合
-        { 'name': 'fedavg', 'pfl_enabled': False, 'display_name': 'xPatch_Global_FedAvg'},
+        { 'name': 'fedavg', 'pfl_enabled': False, 'display_name': 'Global_FedAvg'},
         # 解决Non-IID
         {'name': 'fedprox', 'mu': 0.01},
         # 动量加速
@@ -205,7 +203,6 @@ def main():
 
     target_model = 'xpatch'
 
-    # --- 3. 准备总目录 ---
     timestamp = datetime.datetime.now().strftime("%m%d-%H%M")
     base_save_dir = base_config['results']['save_dir_prefix']
 
@@ -220,7 +217,6 @@ def main():
 
     print(f"计划执行 {total_experiments} 个实验任务...")
 
-    # --- 主循环执行实验 ---
     for plan in files_plan:
         file_path = plan['path']
 
@@ -261,7 +257,7 @@ def main():
     if summary_results:
         df = pd.DataFrame(summary_results)
         print("\n" + "#" * 60)
-        print("实验 2.0 联邦算法对比汇总报告 (FL Alg Comparison)")
+        print("联邦算法对比汇总报告")
         print("#" * 60)
         print(df.to_string(index=False))
         print("#" * 60)

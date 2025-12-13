@@ -246,7 +246,7 @@ def main():
     if summary_results:
         df = pd.DataFrame(summary_results)
         print("\n" + "#" * 60)
-        print("实验 1.0 模型对比汇总报告 (Model Comparison Summary)")
+        print("模型对比汇总报告 (Model Comparison Summary)")
         print("#" * 60)
         print(df.to_string(index=False))
         print("#" * 60)
