@@ -93,7 +93,7 @@ def run_privacy_experiment(dataset_group_name, files, cluster_config, privacy_se
 
     os.makedirs(os.path.join(exp_dir, 'results'), exist_ok=True)
     os.makedirs(os.path.join(exp_dir, 'models'), exist_ok=True)
-    # 不再创建 plots 文件夹
+
 
     set_seed(config.get('seed', 42))
     g = torch.Generator()
@@ -129,11 +129,6 @@ def run_privacy_experiment(dataset_group_name, files, cluster_config, privacy_se
                     c.set_global_model(copy.deepcopy(init_parts))
                     c.local_train()
                     temp_parts[c.client_id] = c.get_local_parameters()
-
-                try:
-                    server.recluster_clients(temp_parts)
-                except Exception as e:
-                    print(f"  [Warning] 初始聚类失败: {e}")
 
             if comm_round < WARMUP_ROUNDS:
                 pass
@@ -203,29 +198,29 @@ def main():
             'files': ['data/batch-1.xlsx', 'data/batch-2.xlsx', 'data/batch-3.xlsx'],
             'cluster_config': {'method': 'spectral', 'num_clusters': 4}
         },
-        # {
-        #     'name': 'MIT_Group',
-        #     'files': ['data/batch-4.xlsx', 'data/batch-5.xlsx'],
-        #     'cluster_config': {'method': 'spectral', 'num_clusters': 3}
-        # }
+        {
+            'name': 'MIT_Group',
+            'files': ['data/batch-4.xlsx', 'data/batch-5.xlsx'],
+            'cluster_config': {'method': 'spectral', 'num_clusters': 3}
+        }
     ]
 
     # 定义隐私强度梯度
     privacy_levels = [
         # 1. 基准：无隐私噪声
-        {'name': 'No_Noise', 'enabled': False, 'sigma_dict': None},
-        #
-        # # 2. 轻微噪声
-        # {'name': 'Low_Noise', 'enabled': True, 'sigma_dict': {'seasonal': 0.001, 'trend': 0.005}},
-        #
-        # # 3. 中等噪声
-        # {'name': 'Medium_Noise', 'enabled': True, 'sigma_dict': {'seasonal': 0.005, 'trend': 0.02}},
-        #
-        # # 4. 较高噪声
-        # {'name': 'High_Noise', 'enabled': True, 'sigma_dict': {'seasonal': 0.01, 'trend': 0.05}},
-        #
-        # # 5. 强噪声
-        # {'name': 'VeryHigh_Noise', 'enabled': True, 'sigma_dict': {'seasonal': 0.02, 'trend': 0.1}},
+        # {'name': 'No_Noise', 'enabled': False, 'sigma_dict': None},
+
+        # 2. 轻微噪声
+        {'name': 'Low_Noise', 'enabled': True, 'sigma_dict': {'seasonal': 0.002, 'trend': 0.010}},
+
+        # 3. 中等噪声
+        # {'name': 'Medium_Noise', 'enabled': True, 'sigma_dict': {'seasonal': 0.005, 'trend': 0.06}},
+
+        # 4. 较高噪声
+        {'name': 'High_Noise', 'enabled': True, 'sigma_dict': {'seasonal': 0.015, 'trend': 0.075}},
+
+        # 5. 强噪声
+        # {'name': 'VeryHigh_Noise', 'enabled': True, 'sigma_dict': {'seasonal': 0.02, 'trend': 0.8}},
     ]
 
     timestamp = datetime.datetime.now().strftime("%m%d-%H%M")

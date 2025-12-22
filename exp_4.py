@@ -197,14 +197,13 @@ def main():
         'files': ['data/batch-1.xlsx', 'data/batch-2.xlsx', 'data/batch-3.xlsx'],
         'win': 50, 'pre': 200
     }
-    # mit_plan = {
-    #     'name': 'MIT_Group',
-    #     'files': ['data/batch-4.xlsx', 'data/batch-5.xlsx'],
-    #     'win': 100, 'pre': 500
-    # }
+    mit_plan = {
+        'name': 'MIT_Group',
+        'files': ['data/batch-4.xlsx', 'data/batch-5.xlsx'],
+        'win': 100, 'pre': 500
+    }
 
-    # experiment_plans = [xjtu_plan, mit_plan]
-    experiment_plans = [xjtu_plan]
+    experiment_plans = [xjtu_plan, mit_plan]
     target_model = 'xpatch'
 
     timestamp = datetime.datetime.now().strftime("%m%d-%H%M")
@@ -230,8 +229,8 @@ def main():
             cluster_nums = [2, 3]  # MIT
 
         for k in cluster_nums:
-            # current_strategies.append({'method': 'kmeans', 'num_clusters': k})
-            # current_strategies.append({'method': 'gmm', 'num_clusters': k})
+            current_strategies.append({'method': 'kmeans', 'num_clusters': k})
+            current_strategies.append({'method': 'gmm', 'num_clusters': k})
             current_strategies.append({'method': 'spectral', 'num_clusters': k})
 
         for clus_conf in current_strategies:
