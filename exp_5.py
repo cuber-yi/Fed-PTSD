@@ -207,20 +207,13 @@ def main():
 
     # 定义隐私强度梯度
     privacy_levels = [
-        # 1. 基准：无隐私噪声
-        # {'name': 'No_Noise', 'enabled': False, 'sigma_dict': None},
-
-        # 2. 轻微噪声
-        {'name': 'Low_Noise', 'enabled': True, 'sigma_dict': {'seasonal': 0.002, 'trend': 0.010}},
-
-        # 3. 中等噪声
-        # {'name': 'Medium_Noise', 'enabled': True, 'sigma_dict': {'seasonal': 0.005, 'trend': 0.06}},
-
-        # 4. 较高噪声
-        {'name': 'High_Noise', 'enabled': True, 'sigma_dict': {'seasonal': 0.015, 'trend': 0.075}},
-
-        # 5. 强噪声
-        # {'name': 'VeryHigh_Noise', 'enabled': True, 'sigma_dict': {'seasonal': 0.02, 'trend': 0.8}},
+        {'name': '0', 'enabled': False, 'sigma_dict': None},
+        {'name': '1', 'enabled': True, 'sigma_dict': {'seasonal': 0.001, 'trend': 0.005}},
+        {'name': '2', 'enabled': True, 'sigma_dict': {'seasonal': 0.002, 'trend': 0.010}},
+        {'name': '3', 'enabled': True, 'sigma_dict': {'seasonal': 0.004, 'trend': 0.020}},
+        {'name': '4', 'enabled': True, 'sigma_dict': {'seasonal': 0.010, 'trend': 0.050}},
+        {'name': '5', 'enabled': True, 'sigma_dict': {'seasonal': 0.015, 'trend': 0.075}},
+        {'name': '6', 'enabled': True, 'sigma_dict': {'seasonal': 0.020, 'trend': 0.100}},
     ]
 
     timestamp = datetime.datetime.now().strftime("%m%d-%H%M")
@@ -228,7 +221,7 @@ def main():
     parent_dir = os.path.normpath(parent_dir)
     os.makedirs(parent_dir, exist_ok=True)
 
-    print(f"开始隐私权衡实验 (Exp 5 - No Plot)，结果保存至: {parent_dir}")
+    print(f"开始隐私权衡实验 (Exp 5)，结果保存至: {parent_dir}")
     print(f"计划: XJTU(Spectral-K4) & MIT(Spectral-K3)")
 
     results = []
