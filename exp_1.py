@@ -135,7 +135,7 @@ def run_single_experiment(file_path, model_name, window_size, pre_len, base_conf
             client_losses_dict[client.client_id] = loss
 
         # 4. Server 聚合
-        # server.aggregate_parameters(client_parts_dict, client_losses_dict)
+        server.aggregate_parameters(client_parts_dict, client_losses_dict)
 
         # 进度打印
         if (comm_round + 1) % 5 == 0 or comm_round == 0:
@@ -154,12 +154,16 @@ def run_single_experiment(file_path, model_name, window_size, pre_len, base_conf
     # 计算平均值
     avg_mae = np.mean([m['MAE'] for m in all_metrics])
     avg_rmse = np.mean([m['RMSE'] for m in all_metrics])
+    std_mae = np.std([m['MAE'] for m in all_metrics])
+    std_rmse = np.std([m['RMSE'] for m in all_metrics])
 
-    # 保存摘要文本
-    save_summary_report(exp_dir, all_metrics, {'MAE': avg_mae, 'RMSE': avg_rmse})
-    print(f"实验完成。 Avg MAE: {avg_mae:.4f}, Avg RMSE: {avg_rmse:.4f}")
 
-    return {'Dataset': file_name, 'Model': model_name, 'MAE': avg_mae, 'RMSE': avg_rmse}
+    save_summary_report(exp_dir, all_metrics,
+                        {'MAE': avg_mae, 'RMSE': avg_rmse, 'MAE_std': std_mae, 'RMSE_std': std_rmse})
+    print(f"实验完成。 Avg MAE: {avg_mae:.4f} (±{std_mae:.4f}), Avg RMSE: {avg_rmse:.4f} (±{std_rmse:.4f})")
+
+    return {'Dataset': file_name, 'Model': model_name, 'MAE': avg_mae, 'RMSE': avg_rmse,
+            'MAE_std': std_mae, 'RMSE_std': std_rmse}
 
 
 def main():
@@ -171,10 +175,10 @@ def main():
     # 1. 数据集与参数计划
     files_plan = [
         {'path': 'data/batch-1.xlsx', 'win': 50, 'pre': 200},
-        {'path': 'data/batch-2.xlsx', 'win': 50, 'pre': 200},
-        {'path': 'data/batch-3.xlsx', 'win': 50, 'pre': 200},
-        {'path': 'data/batch-4.xlsx', 'win': 100, 'pre': 500},
-        {'path': 'data/batch-5.xlsx', 'win': 100, 'pre': 500},
+        # {'path': 'data/batch-2.xlsx', 'win': 50, 'pre': 200},
+        # {'path': 'data/batch-3.xlsx', 'win': 50, 'pre': 200},
+        # {'path': 'data/batch-4.xlsx', 'win': 100, 'pre': 500},
+        # {'path': 'data/batch-5.xlsx', 'win': 100, 'pre': 500},
     ]
 
     # 2. 待测试模型列表

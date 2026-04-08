@@ -177,6 +177,8 @@ def run_extended_clustering_experiment(dataset_group_name, files, cluster_config
 
     avg_mae = np.mean([m['MAE'] for m in all_metrics])
     avg_rmse = np.mean([m['RMSE'] for m in all_metrics])
+    std_mae = np.std([m['MAE'] for m in all_metrics])
+    std_rmse = np.std([m['RMSE'] for m in all_metrics])
 
     save_summary_report(exp_dir, all_metrics, {'MAE': avg_mae, 'RMSE': avg_rmse})
     print(f"实验完成: {cluster_name} -> MAE={avg_mae:.4f}")
@@ -185,7 +187,8 @@ def run_extended_clustering_experiment(dataset_group_name, files, cluster_config
         'Dataset_Group': dataset_group_name,
         'Cluster_Method': cluster_name,
         'MAE': avg_mae,
-        'RMSE': avg_rmse
+        'RMSE': avg_rmse,
+        'MAE_std': std_mae, 'RMSE_std': std_rmse
     }
 
 

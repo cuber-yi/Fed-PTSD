@@ -154,6 +154,8 @@ def run_fl_experiment(file_path, agg_config, model_name, window_size, pre_len, b
     # 计算平均值
     avg_mae = np.mean([m['MAE'] for m in all_metrics])
     avg_rmse = np.mean([m['RMSE'] for m in all_metrics])
+    std_mae = np.std([m['MAE'] for m in all_metrics])
+    std_rmse = np.std([m['RMSE'] for m in all_metrics])
 
     # 保存Loss历史
     pd.DataFrame(loss_history, columns=['loss']).to_csv(
@@ -161,15 +163,17 @@ def run_fl_experiment(file_path, agg_config, model_name, window_size, pre_len, b
     )
 
     # 保存摘要文本
-    save_summary_report(exp_dir, all_metrics, {'MAE': avg_mae, 'RMSE': avg_rmse})
-    print(f"实验完成。 Avg MAE: {avg_mae:.4f}, Avg RMSE: {avg_rmse:.4f}")
+    save_summary_report(exp_dir, all_metrics,
+                        {'MAE': avg_mae, 'RMSE': avg_rmse, 'MAE_std': std_mae, 'RMSE_std': std_rmse})
+    print(f"实验完成。 Avg MAE: {avg_mae:.4f} (±{std_mae:.4f}), Avg RMSE: {avg_rmse:.4f} (±{std_rmse:.4f})")
 
     return {
         'Dataset': file_name,
         'Algorithm': agg_name,
         'Params': str(agg_config),
         'MAE': avg_mae,
-        'RMSE': avg_rmse
+        'RMSE': avg_rmse,
+        'MAE_std': std_mae, 'RMSE_std': std_rmse
     }
 
 

@@ -167,6 +167,8 @@ def run_single_pfl_experiment(file_path, strategy_name, window_size, pre_len, ba
 
     avg_mae = np.mean([m['MAE'] for m in all_metrics])
     avg_rmse = np.mean([m['RMSE'] for m in all_metrics])
+    std_mae = np.std([m['MAE'] for m in all_metrics])
+    std_rmse = np.std([m['RMSE'] for m in all_metrics])
 
     final_avg_time = np.mean(metrics_history['train_time'])
     final_avg_size = np.mean(metrics_history['comm_size'])
@@ -180,7 +182,7 @@ def run_single_pfl_experiment(file_path, strategy_name, window_size, pre_len, ba
         'Dataset': file_name,
         'Strategy': strategy_name,
         'MAE': avg_mae,
-        'RMSE': avg_rmse,
+        'RMSE': avg_rmse, 'MAE_std': std_mae, 'RMSE_std': std_rmse,
         'Avg_Time_Sec': final_avg_time,
         'Comm_Size_MB': final_avg_size
     }

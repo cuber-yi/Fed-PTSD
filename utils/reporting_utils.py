@@ -42,20 +42,19 @@ def save_client_results(save_dir: str, client_id: int, metrics: dict, y_true: np
 def save_summary_report(save_dir: str, all_metrics: list, avg_metrics: dict):
     """
     保存所有客户端的评估结果摘要。
-
-    参数:
-        save_dir (str): 结果保存的根目录。
-        all_metrics (list): 包含所有客户端指标字典的列表。
-        avg_metrics (dict): 包含平均 'MAE' 和 'RMSE' 的字典。
     """
-    # --- 确保结果目录存在 ---
     results_path_dir = os.path.join(save_dir, 'results')
     os.makedirs(results_path_dir, exist_ok=True)
 
-    # --- 写入摘要文件 ---
+    mae_std = avg_metrics.get('MAE_std', np.std([m['MAE'] for m in all_metrics]))
+    rmse_std = avg_metrics.get('RMSE_std', np.std([m['RMSE'] for m in all_metrics]))
+
     summary_path = os.path.join(results_path_dir, 'summary.txt')
     with open(summary_path, 'w') as f:
         for metrics in all_metrics:
             f.write(f"Client {metrics['client_id']}: MAE = {metrics['MAE']:.4f}, RMSE = {metrics['RMSE']:.4f}\n")
+
         f.write(f"\nAverage: MAE = {avg_metrics['MAE']:.4f}, RMSE = {avg_metrics['RMSE']:.4f}\n")
+        f.write(f"Std Dev: MAE = {mae_std:.4f}, RMSE = {rmse_std:.4f}\n")
+
     print(f"Summary saved to {summary_path}")

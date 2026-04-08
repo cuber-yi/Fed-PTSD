@@ -174,6 +174,8 @@ def run_privacy_experiment(dataset_group_name, files, cluster_config, privacy_se
 
     avg_mae = np.mean([m['MAE'] for m in all_metrics])
     avg_rmse = np.mean([m['RMSE'] for m in all_metrics])
+    std_mae = np.std([m['MAE'] for m in all_metrics])
+    std_rmse = np.std([m['RMSE'] for m in all_metrics])
 
     sigma_val = 0.0
     if privacy_setting['enabled']:
@@ -185,7 +187,7 @@ def run_privacy_experiment(dataset_group_name, files, cluster_config, privacy_se
         'Privacy_Mode': noise_level_name,
         'Sigma_Trend': sigma_val,
         'MAE': avg_mae,
-        'RMSE': avg_rmse
+        'RMSE': avg_rmse, 'MAE_std': std_mae, 'RMSE_std': std_rmse
     }
 
 
