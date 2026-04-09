@@ -37,15 +37,13 @@ def run_single_experiment(file_path, model_name, window_size, pre_len, base_conf
 
     # 设置模型名称
     config['model']['name'] = model_name
-    if 'config' not in config['model']:
-        config['model']['config'] = {}
+    config['model']['config'] = {}
 
     # 加载特定模型的参数配置文件
     model_config_path = Path('config') / f"{model_name}.yaml"
     if model_config_path.exists():
         with open(model_config_path, 'r', encoding='utf-8') as f:
             model_specific_config = yaml.safe_load(f)
-            # 兼容两种yaml结构：直接是参数或包含在config键下
             if model_specific_config:
                 if 'config' in model_specific_config:
                     config['model']['config'].update(model_specific_config['config'])
@@ -57,8 +55,12 @@ def run_single_experiment(file_path, model_name, window_size, pre_len, base_conf
     # --- 2. 强制设定实验环境（控制变量） ---
     # 禁用高级特性，仅对比基础模型性能
     config['clustering']['enabled'] = False
-    config['model']['pfl_enabled'] = False  # 禁用个性化层分离，进行纯粹的 Global Model 对比
-    config['privacy']['enabled'] = False  # 禁用差分隐私
+    config['model']['pfl_enabled'] = False
+    config['privacy']['enabled'] = False
+
+    if 'aggregation' not in config:
+        config['aggregation'] = {}
+    config['aggregation']['name'] = 'fedavg'
 
     # 设置数据参数
     config['data']['window_size'] = window_size
@@ -170,29 +172,27 @@ def main():
     # 读取基础配置
     base_config = load_config('config/config.yaml')
 
-    # --- 定义实验计划 ---
-
     # 1. 数据集与参数计划
     files_plan = [
         {'path': 'data/batch-1.xlsx', 'win': 50, 'pre': 200},
-        # {'path': 'data/batch-2.xlsx', 'win': 50, 'pre': 200},
-        # {'path': 'data/batch-3.xlsx', 'win': 50, 'pre': 200},
-        # {'path': 'data/batch-4.xlsx', 'win': 100, 'pre': 500},
-        # {'path': 'data/batch-5.xlsx', 'win': 100, 'pre': 500},
+        {'path': 'data/batch-2.xlsx', 'win': 50, 'pre': 200},
+        {'path': 'data/batch-3.xlsx', 'win': 50, 'pre': 200},
+        {'path': 'data/batch-4.xlsx', 'win': 100, 'pre': 500},
+        {'path': 'data/batch-5.xlsx', 'win': 100, 'pre': 500},
     ]
 
     # 2. 待测试模型列表
     models_to_test = [
         'xpatch',
-        # 'patchtst',
-        # 'timesnet',
-        # 'fedformer',
-        # 'pyraformer',
-        # 'dlinear',
-        # 'rnn',
-        # 'lstm',
-        # 'gru',
-        # 'mlp'
+        'patchtst',
+        'timesnet',
+        'fedformer',
+        'pyraformer',
+        'dlinear',
+        'rnn',
+        'lstm',
+        'gru',
+        'mlp'
     ]
 
     # --- 准备总目录 ---

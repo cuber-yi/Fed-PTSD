@@ -25,7 +25,7 @@ privacy:
     trend: 0.005
 
 aggregation:
-  name: 'fedavgm'  # 'fedavg', 'fedprox', 'fedyogi', 'fedavgm', 'fedadam', 'fedadagrad', 'fedmedian'
+  name: 'fedavg'  # 'fedavg', 'fedprox', 'fedyogi', 'fedavgm', 'fedadam', 'fedadagrad', 'fedmedian'
   mu: 0.01
 
 clustering:

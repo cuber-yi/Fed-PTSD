@@ -182,7 +182,7 @@ def main():
     base_config = load_config('config/config.yaml')
 
     files_plan = [
-        # {'path': 'data/batch-1.xlsx', 'win': 50, 'pre': 200},
+        {'path': 'data/batch-1.xlsx', 'win': 50, 'pre': 200},
         {'path': 'data/batch-2.xlsx', 'win': 50, 'pre': 200},
         {'path': 'data/batch-3.xlsx', 'win': 50, 'pre': 200},
         {'path': 'data/batch-4.xlsx', 'win': 100, 'pre': 500},
@@ -202,7 +202,7 @@ def main():
         {'name': 'fedyogi', 'beta1': 0.9, 'beta2': 0.99, 'server_lr': 0.01},
         {'name': 'fedadagrad', 'beta1': 0.9, 'server_lr': 0.01},
         # 鲁棒聚合
-        {'name': 'fedmedian'}
+        {'name': 'fedmedian'},
     ]
 
     target_model = 'xpatch'
