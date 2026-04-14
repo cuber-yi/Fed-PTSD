@@ -7,10 +7,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
 
-def vectorize_client_params(client_parts_dict, use_pca=True, n_components=0.95):
-    """
-    将客户端参数转化为向量，并可选地应用 PCA 降维
-    """
+def vectorize_client_params(client_parts_dict, use_pca=True, n_components=0.95, trend_weight=1.0, seasonal_weight=1.0):
     client_ids = []
     client_vectors = []
 
@@ -24,9 +21,24 @@ def vectorize_client_params(client_parts_dict, use_pca=True, n_components=0.95):
         for target in targets:
             if target not in parts:
                 continue
+
+            need_scaling = False
+            scale_val = 1.0
+            if target == 'trend' and trend_weight != 1.0:
+                scale_val = np.sqrt(trend_weight)
+                need_scaling = True
+            elif target == 'seasonal' and seasonal_weight != 1.0:
+                scale_val = np.sqrt(seasonal_weight)
+                need_scaling = True
+
             # 将所有参数展平并拼接
             for param in parts[target].values():
-                vector_parts.append(param.data.view(-1))
+                flat_param = param.data.view(-1)
+
+                if need_scaling:
+                    flat_param = flat_param * scale_val
+
+                vector_parts.append(flat_param)
 
         if not vector_parts:
             continue
@@ -40,7 +52,7 @@ def vectorize_client_params(client_parts_dict, use_pca=True, n_components=0.95):
     X_reduced = X
     if use_pca and len(client_ids) > 1:
         n_samples = X.shape[0]
-        n_comp = min(n_samples - 1, 3)  # 至少保留一些维度
+        n_comp = min(n_samples - 1, 3)
 
         if n_samples > 5:
             pca = PCA(n_components=n_components)
@@ -49,7 +61,6 @@ def vectorize_client_params(client_parts_dict, use_pca=True, n_components=0.95):
 
         try:
             X_reduced = pca.fit_transform(X)
-            print(f"  [Cluster Utils] PCA 降维: {X.shape[1]} -> {X_reduced.shape[1]} dims")
         except Exception as e:
             print(f"  [Cluster Utils] PCA 失败，使用原始维度: {e}")
             X_reduced = X

@@ -1,14 +1,20 @@
 from .kmeans import KMeansClustering
 from .gmm import GMMClustering
 from .spectral import SpectralClusteringStrategy
-from .agglomerative import AgglomerativeClusteringStrategy
+from .finch import FinchClusteringStrategy
+from .leiden import LeidenClusteringStrategy
+from .xleiden import XLeidenClustering
+from .xfinch import XFinchClustering
 
 # 注册表
 CLUSTERING_STRATEGIES = {
     'kmeans': KMeansClustering,
     'gmm': GMMClustering,
     'spectral': SpectralClusteringStrategy,
-    'agglomerative': AgglomerativeClusteringStrategy
+    'finch': FinchClusteringStrategy,
+    'leiden': LeidenClusteringStrategy,
+    'xleiden': XLeidenClustering,  # 注册 xLeiden
+    'xfinch': XFinchClustering     # 注册 xFINCH
 }
 
 

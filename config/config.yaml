@@ -32,7 +32,7 @@ clustering:
   enabled: true
   warmup_rounds: 9
 
-  method: 'spectral'  # 可选: 'kmeans', 'gmm', 'spectral', 'agglomerative'
+  method: 'spectral'  # 可选: 'kmeans', 'gmm', 'spectral', 'leiden', 'finch'
 
   num_clusters: 4
   eps: 0.5

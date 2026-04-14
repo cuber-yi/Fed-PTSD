@@ -222,7 +222,7 @@ def main():
         if not valid_files: continue
 
         current_strategies = []
-        current_strategies.append({'method': None, 'num_clusters': 1})
+        # current_strategies.append({'method': None, 'num_clusters': 1})
 
         # 灵活调整聚类数量
         if 'XJTU' in plan['name']:
@@ -231,10 +231,17 @@ def main():
         else:
             cluster_nums = [2, 3]  # MIT
 
-        for k in cluster_nums:
-            current_strategies.append({'method': 'kmeans', 'num_clusters': k})
-            current_strategies.append({'method': 'gmm', 'num_clusters': k})
-            current_strategies.append({'method': 'spectral', 'num_clusters': k})
+        # for k in cluster_nums:
+        #     current_strategies.append({'method': 'kmeans', 'num_clusters': k})
+        #     current_strategies.append({'method': 'gmm', 'num_clusters': k})
+        #     current_strategies.append({'method': 'spectral', 'num_clusters': k})
+
+        # current_strategies.append({'method': 'leiden', 'num_clusters': 'Auto', 'n_neighbors': 5})
+        # current_strategies.append({'method': 'finch', 'num_clusters': 'Auto', 'finch_level': -1})
+        current_strategies.append({'method': 'xleiden', 'num_clusters': 'Auto',
+            'n_neighbors': 5, 'trend_weight': 0.8, 'seasonal_weight': 0.2})
+        current_strategies.append({'method': 'xfinch', 'num_clusters': 'Auto',
+            'finch_level': -1, 'trend_weight': 0.8, 'seasonal_weight': 0.2})
 
         for clus_conf in current_strategies:
             try:
